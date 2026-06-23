@@ -2,6 +2,8 @@
 
 from django.db.models import Exists, OuterRef, Q
 
+from lasuite.drf.models.choices import get_equivalent_link_definition
+
 from core import models
 from core.permissions.backends.base import PermissionsBackend
 
@@ -46,3 +48,32 @@ class RolePermissionsBackend(PermissionsBackend):
                 item=item,
             ).values_list("role", flat=True)
         return self.roles_at(user, item.path)
+
+    def ancestors_links_paths_mapping(self, item):
+        """Return the link definitions applying to each ancestor path of the item."""
+        ancestors = (
+            (item.ancestors() | models.Item.objects.filter(pk=item.pk))
+            .filter(ancestors_deleted_at__isnull=True)
+            .order_by("path")
+        )
+        ancestors_links = []
+        paths_links_mapping = {}
+
+        for ancestor in ancestors:
+            if ancestor.is_restricted:
+                # Inheritance is cut: links from above the boundary do not apply
+                ancestors_links = []
+            ancestors_links.append(
+                {"link_reach": ancestor.link_reach, "link_role": ancestor.link_role}
+            )
+            paths_links_mapping[str(ancestor.path)] = ancestors_links.copy()
+
+        return paths_links_mapping
+
+    def link_definition_for(self, item):
+        """Return the effective link definition of the item, own and inherited combined."""
+        if item.is_restricted:
+            return item.link_definition
+        return get_equivalent_link_definition(
+            [item.ancestors_link_definition, item.link_definition]
+        )

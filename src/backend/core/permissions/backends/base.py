@@ -20,6 +20,14 @@ class PermissionsBackend(ABC):
     def roles_for(self, user, item):
         """Return the roles the user holds on the item, direct or inherited."""
 
+    @abstractmethod
+    def ancestors_links_paths_mapping(self, item):
+        """Return the link definitions applying to each ancestor path of the item."""
+
+    @abstractmethod
+    def link_definition_for(self, item):
+        """Return the effective link definition of the item, own and inherited combined."""
+
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""
         return RoleChoices.max(*self.roles_at(user, path))

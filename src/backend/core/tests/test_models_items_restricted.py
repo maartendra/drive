@@ -3,6 +3,7 @@
 from django.core.exceptions import ValidationError
 
 import pytest
+from lasuite.drf.models.choices import LinkReachChoices
 
 from core import factories, models
 
@@ -113,3 +114,111 @@ def test_models_items_restricted_get_role_descendant_inherits_from_restricted_fo
     parent.save()
 
     assert child.get_role(user) == "editor"
+
+
+def test_models_items_restricted_computed_link_definition_ignores_ancestors():
+    """A restricted folder ignores ancestor link definition."""
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.PUBLIC,
+        link_role="editor",
+    )
+    child = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.RESTRICTED,
+    )
+
+    assert child.computed_link_definition == {
+        "link_reach": LinkReachChoices.PUBLIC,
+        "link_role": "editor",
+    }
+
+    child.is_restricted = True
+    child._computed_link_definition = None  # pylint: disable=protected-access
+
+    assert child.computed_link_definition == {
+        "link_reach": LinkReachChoices.RESTRICTED,
+        "link_role": "reader",
+    }
+
+
+def test_models_items_restricted_computed_link_definition_uses_explicit_value():
+    """Computed link definition on a restricted folder equals its own explicit value."""
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.PUBLIC,
+        link_role="editor",
+    )
+    child = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.AUTHENTICATED,
+        link_role="reader",
+    )
+
+    assert child.computed_link_definition == {
+        "link_reach": LinkReachChoices.PUBLIC,
+        "link_role": "editor",
+    }
+
+    child.is_restricted = True
+    child._computed_link_definition = None  # pylint: disable=protected-access
+
+    assert child.computed_link_definition == {
+        "link_reach": LinkReachChoices.AUTHENTICATED,
+        "link_role": "reader",
+    }
+
+
+def test_models_items_restricted_computed_link_definition_blocks_inheritance_for_descendants():
+    """A descendant of a restricted folder does not inherit link definitions from above."""
+    grandparent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.PUBLIC,
+        link_role="editor",
+    )
+    parent = factories.ItemFactory(
+        parent=grandparent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        link_reach=LinkReachChoices.AUTHENTICATED,
+        link_role="reader",
+    )
+    child = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.RESTRICTED,
+    )
+
+    assert child.computed_link_definition == {
+        "link_reach": LinkReachChoices.AUTHENTICATED,
+        "link_role": "reader",
+    }
+
+
+def test_models_items_restricted_computed_link_definition_descendant_inherits_from_restricted():
+    """A descendant inherits the link definition of its restricted ancestor, not above."""
+    grandparent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.PUBLIC,
+        link_role="editor",
+    )
+    parent = factories.ItemFactory(
+        parent=grandparent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        link_reach=LinkReachChoices.AUTHENTICATED,
+        link_role="reader",
+    )
+    child = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.AUTHENTICATED,
+        link_role="editor",
+    )
+
+    assert child.computed_link_definition == {
+        "link_reach": LinkReachChoices.AUTHENTICATED,
+        "link_role": "editor",
+    }
