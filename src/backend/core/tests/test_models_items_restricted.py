@@ -72,6 +72,69 @@ def test_models_items_restricted_nb_accesses_descendant_counts_from_boundary():
     assert child.nb_accesses == 2
 
 
+def test_models_items_restricted_activate_restriction_sets_flag_and_creates_owner_access():
+    """Activating restriction sets is_restricted and creates an explicit owner access."""
+    parent_user = factories.UserFactory()
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    factories.UserItemAccessFactory(item=parent, user=parent_user, role="owner")
+    folder = factories.ItemFactory(parent=parent, type=models.ItemTypeChoices.FOLDER)
+
+    assert folder.is_restricted is False
+    assert not models.ItemAccess.objects.filter(item=folder, user=user).exists()
+
+    folder.activate_restriction(user)
+    folder.refresh_from_db()
+
+    assert folder.is_restricted is True
+    assert models.ItemAccess.objects.filter(item=folder, user=user, role="owner").exists()
+
+
+def test_models_items_restricted_activate_restriction_keeps_existing_explicit_access():
+    """Activating restriction does not duplicate an existing explicit owner access."""
+    user = factories.UserFactory()
+    folder = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    factories.UserItemAccessFactory(item=folder, user=user, role="owner")
+
+    folder.activate_restriction(user)
+    folder.refresh_from_db()
+
+    assert folder.is_restricted is True
+    assert models.ItemAccess.objects.filter(item=folder, user=user, role="owner").count() == 1
+
+
+def test_models_items_restricted_activate_restriction_promotes_existing_lower_access():
+    """Activating restriction promotes an existing lower explicit access to owner."""
+    user = factories.UserFactory()
+    folder = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    access = factories.UserItemAccessFactory(item=folder, user=user, role="reader")
+
+    folder.activate_restriction(user)
+
+    access.refresh_from_db()
+    assert access.role == models.RoleChoices.OWNER
+
+
+def test_models_items_restricted_activate_restriction_defaults_link_reach():
+    """Activating restriction sets link reach to restricted when none is explicit."""
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=LinkReachChoices.PUBLIC,
+        link_role="reader",
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=None,
+    )
+
+    folder.activate_restriction(user)
+    folder.refresh_from_db()
+
+    assert folder.link_reach == LinkReachChoices.RESTRICTED
+
+
 @pytest.mark.parametrize("role", models.RoleChoices.values)
 def test_models_items_restricted_get_role_ignores_ancestors(role):
     """No inherited role, regardless of level, produces access on a restricted child."""

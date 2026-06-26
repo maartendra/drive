@@ -956,7 +956,7 @@ class ItemManager(TreeManager.from_queryset(ItemQuerySet)):
         return item
 
 
-# pylint: disable=too-many-public-methods
+# pylint: disable=too-many-public-methods, too-many-instance-attributes
 class Item(TreeModel, BaseModel):
     """Item in the tree."""
 
@@ -1462,6 +1462,18 @@ class Item(TreeModel, BaseModel):
             self._meta.model.objects.filter(path__descendants=old_path).update(
                 path=RawSQL("%s || subpath(path, nlevel(%s))", (str(self.path), str(old_path)))
             )
+
+    def activate_restriction(self, user):
+        """Activate restricted access on this folder and ensure the user has an explicit owner."""
+        ItemAccess.objects.update_or_create(
+            item=self, user=user, defaults={"role": RoleChoices.OWNER}
+        )
+        update_fields = ["is_restricted"]
+        self.is_restricted = True
+        if self.link_reach is None:
+            self.link_reach = LinkReachChoices.RESTRICTED
+            update_fields.append("link_reach")
+        self.save(update_fields=update_fields)
 
 
 class MirrorItemTask(BaseModel):
