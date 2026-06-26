@@ -1475,6 +1475,42 @@ class Item(TreeModel, BaseModel):
             update_fields.append("link_reach")
         self.save(update_fields=update_fields)
 
+    def deactivate_restriction(self):
+        """Deactivate restricted access and normalize explicit accesses."""
+        self.is_restricted = False
+        self.save(update_fields=["is_restricted"])
+
+        # Remove explicit accesses that are now redundant (role <= inherited role)
+        inherited_accesses = (
+            get_permissions_backend()
+            .effective_accesses(self)
+            .exclude(item=self)
+            .values_list("user_id", "team", "role")
+        )
+        inherited_roles = {}
+        for user_id, team, role in inherited_accesses:
+            key = (user_id, team)
+            inherited_roles[key] = RoleChoices.max(inherited_roles.get(key), role)
+
+        redundant_ids = [
+            access.id
+            for access in ItemAccess.objects.filter(item=self)
+            if RoleChoices.get_priority(access.role)
+            <= RoleChoices.get_priority(inherited_roles.get((access.user_id, access.team)))
+        ]
+        if redundant_ids:
+            ItemAccess.objects.filter(id__in=redundant_ids).delete()
+            self.invalidate_nb_accesses_cache()
+
+        # Reset link reach to restricted (= inherit) if now redundant (reach <= inherited reach)
+        self._ancestors_link_definition = None
+        inherited_reach = self.ancestors_link_definition["link_reach"]
+        if LinkReachChoices.get_priority(self.link_reach) <= LinkReachChoices.get_priority(
+            inherited_reach
+        ):
+            self.link_reach = LinkReachChoices.RESTRICTED
+            self.save(update_fields=["link_reach"])
+
 
 class MirrorItemTask(BaseModel):
     """Model managing a status for a mirroring task."""
