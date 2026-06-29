@@ -1511,6 +1511,10 @@ class Item(TreeModel, BaseModel):
             self.link_reach = LinkReachChoices.RESTRICTED
             self.save(update_fields=["link_reach"])
 
+    def uproot(self):
+        """Move a restricted folder to root, preserving its accesses and content."""
+        self.move(None)
+
 
 class MirrorItemTask(BaseModel):
     """Model managing a status for a mirroring task."""

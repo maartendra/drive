@@ -309,6 +309,46 @@ def test_models_items_restricted_deactivate_restriction_keeps_link_reach_without
     assert folder.link_role == "reader"
 
 
+def test_models_items_restricted_uproot_moves_to_root():
+    """Uprooting a restricted folder moves it to root with its accesses intact."""
+    owner = factories.UserFactory()
+    shared_user = factories.UserFactory()
+    parent = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    factories.UserItemAccessFactory(item=folder, user=owner, role="owner")
+    factories.UserItemAccessFactory(item=folder, user=shared_user, role="editor")
+
+    folder.uproot()
+    folder.refresh_from_db()
+
+    assert folder.depth == 1
+    assert models.ItemAccess.objects.filter(item=folder, user=owner, role="owner").exists()
+    assert models.ItemAccess.objects.filter(item=folder, user=shared_user, role="editor").exists()
+
+
+def test_models_items_restricted_uproot_moves_descendants():
+    """Uprooting a restricted folder moves its descendants along with it."""
+    parent = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    child = factories.ItemFactory(parent=folder, type=models.ItemTypeChoices.FOLDER)
+    grandchild = factories.ItemFactory(parent=child, type=models.ItemTypeChoices.FILE)
+
+    folder.uproot()
+    child.refresh_from_db()
+    grandchild.refresh_from_db()
+
+    assert child.depth == 2
+    assert grandchild.depth == 3
+
+
 @pytest.mark.parametrize("role", models.RoleChoices.values)
 def test_models_items_restricted_get_role_ignores_ancestors(role):
     """No inherited role, regardless of level, produces access on a restricted child."""
