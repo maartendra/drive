@@ -96,3 +96,62 @@ def test_api_items_restrict_response_includes_field():
     assert response.status_code == 200
     assert "is_restricted" in response.json()
     assert response.json()["is_restricted"] is False
+
+
+def test_api_items_restrict_delete_by_container_owner_uproots():
+    """DELETE by container owner moves the restricted folder to root instead of trashing it."""
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(user, "owner")],
+    )
+    child = factories.ItemFactory(parent=parent, type=models.ItemTypeChoices.FILE)
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    factories.UserItemAccessFactory(item=folder, user=factories.UserFactory(), role="owner")
+    descendant = factories.ItemFactory(parent=folder, type=models.ItemTypeChoices.FILE)
+
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.delete(f"/api/v1.0/items/{folder.id!s}/")
+    assert response.status_code == 204
+
+    folder.refresh_from_db()
+    assert folder.deleted_at is None
+    assert folder.depth == 1
+    assert folder.is_restricted is True
+
+    descendant.refresh_from_db()
+    assert descendant.deleted_at is None
+    assert descendant.depth == 2
+
+    child.refresh_from_db()
+    assert child.deleted_at is None
+
+
+def test_api_items_restrict_delete_by_explicit_owner_soft_deletes():
+    """DELETE by explicit owner of a restricted folder soft-deletes it normally."""
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(user, "owner")],
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(user, "owner")],
+    )
+
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.delete(f"/api/v1.0/items/{folder.id!s}/")
+    assert response.status_code == 204
+
+    folder.refresh_from_db()
+    assert folder.deleted_at is not None

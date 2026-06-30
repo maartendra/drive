@@ -679,8 +679,13 @@ class ItemViewSet(
         )
 
     def perform_destroy(self, instance):
-        """Override to implement a soft delete instead of dumping the record in database."""
-        instance.soft_delete()
+        """Override to implement a soft delete or uproot for restricted folders."""
+        abilities = instance.get_abilities(self.request.user)
+        # Parent owner with no access to restricted child can only displace, not delete
+        if abilities["destroy"] and not abilities["hard_delete"] and instance.is_restricted:
+            instance.uproot()
+        else:
+            instance.soft_delete()
 
     def perform_update(self, serializer):
         """Override to check if a file is renamed in order to rename file on storage."""
