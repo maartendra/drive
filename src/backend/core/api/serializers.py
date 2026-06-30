@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from lasuite.drf.models.choices import LinkReachChoices, get_equivalent_link_definition
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 
 from core import models
 from core.api import utils
@@ -248,6 +248,7 @@ class ListItemSerializer(serializers.ModelSerializer):
             "is_favorite",
             "link_role",
             "link_reach",
+            "is_restricted",
             "nb_accesses",
             "numchild",
             "numchild_folder",
@@ -280,6 +281,7 @@ class ListItemSerializer(serializers.ModelSerializer):
             "creator",
             "depth",
             "is_favorite",
+            "is_restricted",
             "link_role",
             "link_reach",
             "nb_accesses",
@@ -478,6 +480,7 @@ class ItemSerializer(ListItemSerializer):
             "is_favorite",
             "link_role",
             "link_reach",
+            "is_restricted",
             "nb_accesses",
             "numchild",
             "numchild_folder",
@@ -534,7 +537,17 @@ class ItemSerializer(ListItemSerializer):
         raise NotImplementedError("Create method can not be used.")
 
     def update(self, instance, validated_data):
-        """Validate that the title is unique in the current path."""
+        """Update an item, handling restriction and title uniqueness."""
+        is_restricted = validated_data.pop("is_restricted", None)
+        if is_restricted is not None and is_restricted != instance.is_restricted:
+            user = self.context["request"].user
+            if not instance.get_abilities(user).get("restrict"):
+                raise exceptions.PermissionDenied()
+            if is_restricted:
+                instance.activate_restriction(user)
+            else:
+                instance.deactivate_restriction()
+
         if validated_data.get("title") and instance.title != validated_data.get("title"):
             if instance.depth > 1:
                 validated_data["title"] = instance.manage_unique_title(validated_data.get("title"))

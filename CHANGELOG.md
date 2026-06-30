@@ -14,6 +14,7 @@ and this project adheres to
 - ✨(frontend) add file type, contact and modification date topbar filters
 - ✨(frontend) add location, file type, contact and date search filters
 - ♻️(backend) route permission decisions through a swappable backend
+- ✨(backend) add restricted access on folders, cutting role and link inheritance
 
 ### Fixed
 
