@@ -32,6 +32,10 @@ class PermissionsBackend(ABC):
     def abilities(self, user, item):
         """Compute and return abilities for a given user on the item."""
 
+    @abstractmethod
+    def restriction_roots_below(self, item):
+        """Return the restricted descendants not nested under another restricted folder."""
+
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""
         return RoleChoices.max(*self.roles_at(user, path))

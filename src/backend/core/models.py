@@ -1340,11 +1340,16 @@ class Item(TreeModel, BaseModel):
                 "Cannot delete this item because one or more ancestors are already deleted."
             )
 
+        # Extract shallowest restricted descendants before deleting
+        if self.type == ItemTypeChoices.FOLDER:
+            for item in get_permissions_backend().restriction_roots_below(self):
+                item.uproot()
+
         self.ancestors_deleted_at = self.deleted_at = timezone.now()
 
         self.save(update_fields=["deleted_at", "ancestors_deleted_at"])
 
-        # Mark all descendants as soft deleted
+        # Mark all remaining descendants as soft deleted
         if self.type == ItemTypeChoices.FOLDER:
             self.descendants().filter(ancestors_deleted_at__isnull=True).update(
                 ancestors_deleted_at=self.ancestors_deleted_at,

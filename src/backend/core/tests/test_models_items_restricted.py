@@ -349,6 +349,43 @@ def test_models_items_restricted_uproot_moves_descendants():
     assert grandchild.depth == 3
 
 
+def test_models_items_restricted_soft_delete_extracts_restricted_descendants():
+    """Soft-deleting a folder extracts its shallowest restricted descendants to root."""
+    root = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    normal_child = factories.ItemFactory(parent=root, type=models.ItemTypeChoices.FOLDER)
+    restricted_child = factories.ItemFactory(
+        parent=root,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    nested_restricted = factories.ItemFactory(
+        parent=restricted_child,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+
+    root.soft_delete()
+
+    root.refresh_from_db()
+    normal_child.refresh_from_db()
+    restricted_child.refresh_from_db()
+    nested_restricted.refresh_from_db()
+
+    # Root and normal child are soft-deleted
+    assert root.deleted_at is not None
+    assert normal_child.ancestors_deleted_at is not None
+
+    # Shallowest restricted child is extracted to root
+    assert restricted_child.depth == 1
+    assert restricted_child.deleted_at is None
+    assert restricted_child.ancestors_deleted_at is None
+
+    # Nested restricted stays inside the extracted folder
+    assert nested_restricted.depth == 2
+    assert nested_restricted.deleted_at is None
+    assert nested_restricted.ancestors_deleted_at is None
+
+
 @pytest.mark.parametrize("role", models.RoleChoices.values)
 def test_models_items_restricted_get_role_ignores_ancestors(role):
     """No inherited role, regardless of level, produces access on a restricted child."""

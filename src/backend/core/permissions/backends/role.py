@@ -84,6 +84,22 @@ class RolePermissionsBackend(PermissionsBackend):
             [item.ancestors_link_definition, item.link_definition]
         )
 
+    def restriction_roots_below(self, item):
+        """Return the restricted descendants not nested under another restricted folder."""
+        return (
+            item.descendants()
+            .filter(is_restricted=True)
+            .exclude(
+                Exists(
+                    models.Item.objects.filter(
+                        is_restricted=True,
+                        path__descendants=item.path,
+                        path__ancestors=OuterRef("path"),
+                    ).exclude(path=OuterRef("path"))
+                )
+            )
+        )
+
     def abilities(self, user, item):  # pylint: disable=too-many-locals
         """Compute and return abilities for a given user on the item."""
         # First get the role based on specific access
