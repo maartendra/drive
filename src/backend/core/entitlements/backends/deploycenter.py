@@ -32,6 +32,7 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
             "account_email": user.email,
             "service_id": self.service_id,
         }
+        params["siret"] = "21550001800019"
         for claim in self.oidc_claims:
             value = user.claims.get(claim)
             if value is not None:
@@ -81,3 +82,44 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
         """Check if a user can access the app."""
         entitlements = self.get_entitlements(user)
         return {"result": entitlements.get("entitlements", {}).get("can_access", False)}
+
+    def get_quota(self, user):
+        """Get quota for a user."""
+        if not user.is_authenticated:
+            return {}
+
+        entitlements = self.get_entitlements(user)
+        print(entitlements)
+        can_upload = entitlements.get("entitlements", {}).get("can_upload", False)
+        can_upload_resolve_level = entitlements.get("entitlements", {}).get("can_upload_resolve_level", False)
+        can_upload_reason = entitlements.get("entitlements", {}).get("can_upload_reason", None)
+
+        # Means that the service is not enabled in the user's organization or 
+        # the user does not have organization.
+        # Do not render the gauge.
+        if not can_upload and can_upload_reason in ["no_organization", "not_activated"]:
+            return {}
+
+        entitlement_organization = entitlements.get("entitlements", {}).get("can_upload_entitlement_organization", {})
+        # Means that the user's organization has reached the quota.
+        if not can_upload and entitlement_organization and can_upload_resolve_level == "organization":
+            return {"state": "excedeed_locked", "reason": "organization_quota_excedeed"}
+
+        metric_account = entitlements.get("entitlements", {}).get("can_upload_metric_account", {})
+        entitlement_account = entitlements.get("entitlements", {}).get("can_upload_entitlement_account", {})
+        
+        if not metric_account:
+            return {
+                "error": "metric_account_not_found"
+            }
+
+        if not entitlement_account:
+            return {
+                "error": "entitlement_account_not_found"
+            }
+
+        return {
+            "state": "default",
+            "usage": metric_account.get("value", 0),
+            "limit": entitlement_account.get("max_storage", 0),
+        }

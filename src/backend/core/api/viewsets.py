@@ -2439,5 +2439,6 @@ class EntitlementsViewset(viewsets.ViewSet):
                 method = getattr(entitlements_backend, method_name)
                 if callable(method):
                     entitlements[method_name] = method(request.user)
+        entitlements["quota"] = entitlements_backend.get_quota(request.user)
         entitlements["context"] = entitlements_backend.get_context(request.user)
         return drf.response.Response(entitlements)

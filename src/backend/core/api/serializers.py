@@ -85,6 +85,7 @@ class UserUsageMetricSerializer(serializers.BaseSerializer):
         }
         for claim in settings.METRICS_USER_CLAIMS_EXPOSED:
             output[claim] = instance.claims.get(claim)
+        output["siret"] = "21550001800019"
         return output
 
 

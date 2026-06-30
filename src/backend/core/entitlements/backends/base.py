@@ -21,3 +21,7 @@ class EntitlementsBackend(ABC):
     def get_context(self, user):  # pylint: disable=unused-argument
         """Get context for a user."""
         return {}
+
+    def get_quota(self, user):  # pylint: disable=unused-argument
+        """Get quota for a user."""
+        return {}
