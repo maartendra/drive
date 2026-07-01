@@ -708,3 +708,51 @@ def test_models_items_restricted_deactivation_stops_at_boundary():
         user=user,
         role=models.RoleChoices.READER,
     ).exists()
+
+
+def test_models_items_restricted_destroy_requires_parent_ownership():
+    """Owning a grandparent does not grant destroy on a folder behind a restriction."""
+    user = factories.UserFactory()
+    grandparent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+    parent = factories.ItemFactory(
+        parent=grandparent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+
+    abilities = folder.get_abilities(user)
+
+    assert abilities["destroy"] is False
+
+
+def test_models_items_restricted_destroy_checks_actual_parent_after_move():
+    """After a move, destroy must check the actual parent, not a stale one."""
+    user = factories.UserFactory()
+    actual_parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    folder = factories.ItemFactory(
+        parent=actual_parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    new_grandparent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+
+    actual_parent.move(new_grandparent)
+    folder.refresh_from_db()
+
+    abilities = folder.get_abilities(user)
+
+    assert abilities["destroy"] is False
