@@ -538,3 +538,65 @@ def test_api_items_link_configuration_sync_link_reach_descendants():
 
     assert folder3.link_reach is None
     assert folder3.computed_link_reach == models.LinkReachChoices.PUBLIC
+
+
+def test_api_items_link_configuration_restricted_ignores_parent_constraint():
+    """A restricted folder can be less open than its parent."""
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=models.LinkReachChoices.PUBLIC,
+        link_role=models.LinkRoleChoices.READER,
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        link_reach=models.LinkReachChoices.PUBLIC,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.put(
+        f"/api/v1.0/items/{folder.id!s}/link-configuration/",
+        {"link_reach": models.LinkReachChoices.RESTRICTED},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    folder.refresh_from_db()
+    assert folder.link_reach == models.LinkReachChoices.RESTRICTED
+
+
+def test_api_items_link_configuration_restricted_preserves_boundary():
+    """Updating an ancestor must preserve a restricted descendant's explicit link reach."""
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        link_reach=models.LinkReachChoices.RESTRICTED,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        link_reach=models.LinkReachChoices.AUTHENTICATED,
+        link_role=models.LinkRoleChoices.READER,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.put(
+        f"/api/v1.0/items/{parent.id!s}/link-configuration/",
+        {
+            "link_reach": models.LinkReachChoices.PUBLIC,
+            "link_role": models.LinkRoleChoices.READER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    folder.refresh_from_db()
+    assert folder.link_reach == models.LinkReachChoices.AUTHENTICATED

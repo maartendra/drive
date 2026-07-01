@@ -40,6 +40,10 @@ class PermissionsBackend(ABC):
     def annotate_roles(self, queryset, user, path_field="path"):
         """Annotate the queryset rows with the user's roles as user_roles."""
 
+    @abstractmethod
+    def propagation_scope(self, item):
+        """Return the descendants of the item outside any restricted subtree."""
+
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""
         return RoleChoices.max(*self.roles_at(user, path))

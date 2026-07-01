@@ -105,6 +105,18 @@ class RolePermissionsBackend(PermissionsBackend):
 
         return queryset.annotate(user_roles=Value([], output_field=output_field))
 
+    def propagation_scope(self, item):
+        """Return the descendants of the item outside any restricted subtree."""
+        return item.descendants().exclude(
+            Exists(
+                models.Item.objects.filter(
+                    is_restricted=True,
+                    path__descendants=item.path,
+                    path__ancestors=OuterRef("path"),
+                )
+            )
+        )
+
     def restriction_roots_below(self, item):
         """Return the restricted descendants not nested under another restricted folder."""
         return (

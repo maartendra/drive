@@ -47,6 +47,7 @@ from rest_framework_api_key.permissions import HasAPIKey
 
 from core import enums, models
 from core.entitlements import get_entitlements_backend
+from core.permissions import get_permissions_backend
 from core.services.item_exports import build_zip_stream, export_descendants
 from core.services.sdk_relay import SDKRelayManager
 from core.services.search_indexers import (
@@ -1472,7 +1473,7 @@ class ItemViewSet(
         if models.LinkReachChoices.get_priority(
             item.link_reach
         ) >= models.LinkReachChoices.get_priority(previous_link_reach):
-            item.descendants().update(link_reach=None)
+            get_permissions_backend().propagation_scope(item).update(link_reach=None)
 
         return drf.response.Response(serializer.data, status=drf.status.HTTP_200_OK)
 
