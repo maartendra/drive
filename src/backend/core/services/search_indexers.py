@@ -54,12 +54,29 @@ def get_ancestor_to_descendants_map(items):
     Returns:
         dict[str, set[str]]: Mapping from ancestor path to its descendant paths (including itself).
     """
-    ancestor_map = defaultdict(set)
+    all_ancestor_paths = set()
+    for item in items:
+        ancestors = item.path
+        for i in range(1, len(ancestors)):
+            all_ancestor_paths.add(".".join(ancestors[:i]))
 
+    restricted_paths = {
+        str(p)
+        for p in models.Item.objects.filter(
+            is_restricted=True, path__in=list(all_ancestor_paths)
+        ).values_list("path", flat=True)
+    }
+
+    ancestor_map = defaultdict(set)
     for item in items:
         fullpath = str(item.path)
         ancestors = item.path
+        start_from = 1
         for i in range(1, len(ancestors) + 1):
+            ancestor = ".".join(ancestors[:i])
+            if ancestor in restricted_paths:
+                start_from = i
+        for i in range(start_from, len(ancestors) + 1):
             ancestor = ".".join(ancestors[:i])
             ancestor_map[ancestor].add(fullpath)
 

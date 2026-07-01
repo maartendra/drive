@@ -18,6 +18,7 @@ from core.services.search_indexers import (
     BaseItemIndexer,
     SearchIndexer,
     get_ancestor_to_descendants_map,
+    get_batch_accesses_by_users_and_teams,
     get_file_indexer,
     get_visited_items_ids_of,
     is_allowed_mimetype,
@@ -949,3 +950,28 @@ def test_services_search_indexers_search_nb_results(mock_post, indexer_settings)
 
     assert args[0] == indexer_settings.SEARCH_INDEXER_QUERY_URL
     assert kwargs.get("json")["nb_results"] == 109
+
+
+def test_services_search_indexers_restricted_access_stops_inherited_accesses():
+    """Indexed ACLs must not cross a restricted folder boundary."""
+    excluded_user = factories.UserFactory()
+    explicit_user = factories.UserFactory()
+    root = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(excluded_user, models.RoleChoices.OWNER)],
+    )
+    restricted = factories.ItemFactory(
+        parent=root,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(explicit_user, models.RoleChoices.READER)],
+    )
+    document = factories.ItemFactory(
+        parent=restricted,
+        type=models.ItemTypeChoices.FILE,
+        update_upload_state=models.ItemUploadStateChoices.READY,
+    )
+
+    accesses = get_batch_accesses_by_users_and_teams([document])
+
+    assert accesses[str(document.path)]["users"] == {str(explicit_user.sub)}
