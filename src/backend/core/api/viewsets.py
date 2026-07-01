@@ -1849,9 +1849,12 @@ class ItemAccessViewSet(
         if not role:
             return drf.response.Response([])
 
-        # Get all accesses from ancestors (including current item)
-        ancestors_qs = models.Item.objects.filter(
-            path__ancestors=self.item.path, ancestors_deleted_at__isnull=True
+        # Get all accesses from ancestors (including current item), stopping
+        # at the deepest restricted folder which cuts inheritance
+        ancestors_qs = (
+            get_permissions_backend()
+            .inheritance_scope(self.item)
+            .filter(ancestors_deleted_at__isnull=True)
         )
         accesses_qs = self.get_queryset().filter(item__in=ancestors_qs)
         if role not in PRIVILEGED_ROLES:
@@ -1974,25 +1977,27 @@ class ItemAccessViewSet(
             )
 
         # Look for the max ancestors role of the item for the current user.
-        ancestor_qs = (self.item.ancestors() | models.Item.objects.filter(pk=self.item.pk)).filter(
-            ancestors_deleted_at__isnull=True
-        )
-        ancestors_roles = models.ItemAccess.objects.filter(
-            item__in=ancestor_qs, user=serializer.validated_data.get("user")
-        ).values_list("role", flat=True)
-        max_ancestors_role = models.RoleChoices.max(*ancestors_roles)
+        # Restricted folders cut inheritance: only check the item itself.
+        if not self.item.is_restricted:
+            ancestor_qs = (
+                self.item.ancestors() | models.Item.objects.filter(pk=self.item.pk)
+            ).filter(ancestors_deleted_at__isnull=True)
+            ancestors_roles = models.ItemAccess.objects.filter(
+                item__in=ancestor_qs, user=serializer.validated_data.get("user")
+            ).values_list("role", flat=True)
+            max_ancestors_role = models.RoleChoices.max(*ancestors_roles)
 
-        if models.RoleChoices.get_priority(max_ancestors_role) >= models.RoleChoices.get_priority(
-            role
-        ):
-            raise drf.exceptions.ValidationError(
-                {
-                    "role": (
-                        f"The role {role} you are trying to assign is lower or equal"
-                        f" than the max ancestors role {max_ancestors_role}."
-                    ),
-                }
-            )
+            if models.RoleChoices.get_priority(
+                max_ancestors_role
+            ) >= models.RoleChoices.get_priority(role):
+                raise drf.exceptions.ValidationError(
+                    {
+                        "role": (
+                            f"The role {role} you are trying to assign is lower or equal"
+                            f" than the max ancestors role {max_ancestors_role}."
+                        ),
+                    }
+                )
 
         access = serializer.save(item_id=self.kwargs["resource_id"])
         self._syncronize_descendants_accesses(access)
@@ -2035,7 +2040,11 @@ class ItemAccessViewSet(
         Syncronize the accesses of the descendants of the item
         by removing accesses with roles lower than the current user's role.
         """
-        descendants = self.item.descendants().filter(ancestors_deleted_at__isnull=True)
+        descendants = (
+            get_permissions_backend()
+            .propagation_scope(self.item)
+            .filter(ancestors_deleted_at__isnull=True)
+        )
 
         condition_filter = db.Q()
         if access.user:

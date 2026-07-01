@@ -1649,9 +1649,12 @@ class ItemAccess(BaseModel):
             filter_condition |= models.Q(user=self.user)
         if self.team:
             filter_condition |= models.Q(team=self.team)
-        ancestors_roles = ItemAccess.objects.filter(
-            filter_condition, item__in=ancestors
-        ).values_list("role", "item_id")
+        ancestors_roles = (
+            get_permissions_backend()
+            .effective_accesses(self.item)
+            .filter(filter_condition, item__in=ancestors)
+            .values_list("role", "item_id")
+        )
 
         roles = dict(ancestors_roles)
 

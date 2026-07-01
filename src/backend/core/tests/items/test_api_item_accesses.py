@@ -497,6 +497,39 @@ def test_api_item_accesses_list_authenticated_related_same_team(roles, results, 
     assert [result_dict[str(access.id)] for access in accesses] == results
 
 
+def test_api_item_accesses_list_restricted_cuts_inherited_accesses():
+    """Listing accesses of a restricted folder only returns its own accesses."""
+    folder_owner = factories.UserFactory()
+    member = factories.UserFactory()
+    parent = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    factories.UserItemAccessFactory(item=parent, role=models.RoleChoices.OWNER)
+    factories.UserItemAccessFactory(item=parent, user=member, role=models.RoleChoices.EDITOR)
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(folder_owner, models.RoleChoices.OWNER)],
+    )
+    member_access = factories.UserItemAccessFactory(
+        item=folder, user=member, role=models.RoleChoices.READER
+    )
+
+    client = APIClient()
+    client.force_login(folder_owner)
+
+    response = client.get(f"/api/v1.0/items/{folder.id!s}/accesses/")
+
+    assert response.status_code == 200
+    content = response.json()
+    owner_access = models.ItemAccess.objects.get(item=folder, user=folder_owner)
+    assert sorted(result["id"] for result in content) == sorted(
+        [str(owner_access.id), str(member_access.id)]
+    )
+    member_result = next(r for r in content if r["id"] == str(member_access.id))
+    assert member_result["max_ancestors_role"] is None
+    assert member_result["max_role"] == models.RoleChoices.READER
+
+
 def test_api_item_accesses_retrieve_anonymous():
     """
     Anonymous users should not be allowed to retrieve an item access.
@@ -1202,6 +1235,70 @@ def test_api_item_accesses_update_to_same_role_as_max_ancestors_role():
 
     assert item.get_role(other_user) == "editor"
     assert not models.ItemAccess.objects.filter(item=item, user=other_user).exists()
+
+
+def test_api_item_accesses_update_restricted_role_equal_above_boundary():
+    """Updating to a role equal to one above the boundary must keep the explicit access."""
+    folder_owner = factories.UserFactory()
+    member = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(member, models.RoleChoices.EDITOR)],
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(folder_owner, models.RoleChoices.OWNER)],
+    )
+    access = factories.UserItemAccessFactory(
+        item=folder, user=member, role=models.RoleChoices.READER
+    )
+
+    client = APIClient()
+    client.force_login(folder_owner)
+
+    response = client.put(
+        f"/api/v1.0/items/{folder.id!s}/accesses/{access.id!s}/",
+        data={"role": "editor"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    access.refresh_from_db()
+    assert access.role == models.RoleChoices.EDITOR
+
+
+def test_api_item_accesses_update_restricted_role_below_boundary():
+    """A role lower than one above the boundary is valid on a restricted folder."""
+    folder_owner = factories.UserFactory()
+    member = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(member, models.RoleChoices.EDITOR)],
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(folder_owner, models.RoleChoices.OWNER)],
+    )
+    access = factories.UserItemAccessFactory(
+        item=folder, user=member, role=models.RoleChoices.ADMIN
+    )
+
+    client = APIClient()
+    client.force_login(folder_owner)
+
+    response = client.put(
+        f"/api/v1.0/items/{folder.id!s}/accesses/{access.id!s}/",
+        data={"role": "reader"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    access.refresh_from_db()
+    assert access.role == models.RoleChoices.READER
 
 
 def test_api_item_accesses_delete_anonymous():

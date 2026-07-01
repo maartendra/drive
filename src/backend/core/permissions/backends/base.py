@@ -44,6 +44,10 @@ class PermissionsBackend(ABC):
     def propagation_scope(self, item):
         """Return the descendants of the item outside any restricted subtree."""
 
+    @abstractmethod
+    def inheritance_scope(self, item):
+        """Return the ancestors of the item, itself included, down to its restriction boundary."""
+
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""
         return RoleChoices.max(*self.roles_at(user, path))

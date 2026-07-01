@@ -15,14 +15,14 @@ from core.permissions.backends.base import PermissionsBackend
 from wopi.conversion.policy import target_extension_for
 
 
-def _cut_by_restriction(path):
-    """Build a subquery matching accesses separated from the given path by a restricted folder."""
+def _cut_by_restriction(path, path_field="item__path"):
+    """Build a subquery matching rows separated from the given path by a restricted folder."""
     return Exists(
         models.Item.objects.filter(
             is_restricted=True,
             path__ancestors=path,
-            path__descendants=OuterRef("item__path"),
-        ).exclude(path=OuterRef("item__path"))
+            path__descendants=OuterRef(path_field),
+        ).exclude(path=OuterRef(path_field))
     )
 
 
@@ -104,6 +104,12 @@ class RolePermissionsBackend(PermissionsBackend):
             )
 
         return queryset.annotate(user_roles=Value([], output_field=output_field))
+
+    def inheritance_scope(self, item):
+        """Return the ancestors of the item, itself included, down to its restriction boundary."""
+        return models.Item.objects.filter(path__ancestors=item.path).exclude(
+            _cut_by_restriction(item.path, path_field="path")
+        )
 
     def propagation_scope(self, item):
         """Return the descendants of the item outside any restricted subtree."""

@@ -490,3 +490,76 @@ def test_api_item_accesses_create_posthog_event(settings):
         {"id": access.id, "role": "editor"},
         item=item,
     )
+
+
+def test_api_item_accesses_create_restricted_allows_lower_explicit_role():
+    """A restricted folder may keep an explicit role lower than one above its boundary."""
+    owner = factories.UserFactory()
+    invited_user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(invited_user, models.RoleChoices.OWNER)],
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(owner, models.RoleChoices.OWNER)],
+    )
+    client = APIClient()
+    client.force_login(owner)
+
+    response = client.post(
+        f"/api/v1.0/items/{folder.id!s}/accesses/",
+        {
+            "user_id": str(invited_user.id),
+            "role": models.RoleChoices.READER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert models.ItemAccess.objects.filter(
+        item=folder,
+        user=invited_user,
+        role=models.RoleChoices.READER,
+    ).exists()
+
+
+def test_api_item_accesses_create_restricted_preserves_descendant_access():
+    """Synchronizing an ancestor must preserve accesses inside a restricted descendant."""
+    owner = factories.UserFactory()
+    invited_user = factories.UserFactory()
+    root = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(owner, models.RoleChoices.OWNER)],
+    )
+    parent = factories.ItemFactory(parent=root, type=models.ItemTypeChoices.FOLDER)
+    restricted = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    factories.UserItemAccessFactory(
+        item=restricted,
+        user=invited_user,
+        role=models.RoleChoices.READER,
+    )
+    client = APIClient()
+    client.force_login(owner)
+
+    response = client.post(
+        f"/api/v1.0/items/{parent.id!s}/accesses/",
+        {
+            "user_id": str(invited_user.id),
+            "role": models.RoleChoices.EDITOR,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert models.ItemAccess.objects.filter(
+        item=restricted,
+        user=invited_user,
+        role=models.RoleChoices.READER,
+    ).exists()
