@@ -431,6 +431,33 @@ def test_api_items_search_authenticated_with_title_filter_on_top_level_file():
     assert response.data["count"] == 0
 
 
+def test_api_items_search_restricted_excludes_inaccessible_descendants():
+    """Search must not return content hidden by a restricted folder."""
+    user = factories.UserFactory()
+    root = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+    restricted = factories.ItemFactory(
+        parent=root,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    factories.ItemFactory(
+        parent=restricted,
+        type=models.ItemTypeChoices.FILE,
+        title="confidential-restricted-search-result",
+        update_upload_state=models.ItemUploadStateChoices.READY,
+    )
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.get("/api/v1.0/items/search/?title=confidential-restricted-search-result")
+
+    assert response.status_code == 200
+    assert response.data["count"] == 0
+
+
 def test_api_items_search_authenticated_by_type():
     """
     Authenticated users should be able to search for items by type.

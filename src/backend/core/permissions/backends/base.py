@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 
+from django.db.models import prefetch_related_objects
 from lasuite.drf.models.choices import RoleChoices
 
 
@@ -47,6 +48,12 @@ class PermissionsBackend(ABC):
     @abstractmethod
     def inheritance_scope(self, item):
         """Return the ancestors of the item, itself included, down to its restriction boundary."""
+
+    def visible(self, queryset, user, path_field="path"):
+        """Filter the queryset to the rows on which the user holds a role."""
+        if user and user.is_authenticated:
+            prefetch_related_objects([user], "teams")
+        return self.annotate_roles(queryset, user, path_field=path_field).exclude(user_roles=[])
 
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""

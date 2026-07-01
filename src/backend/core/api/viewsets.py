@@ -1414,7 +1414,7 @@ class ItemViewSet(
 
         # Without the indexer, the "title" filtering is kept
         queryset = filterset.filter_queryset(queryset)
-        queryset = queryset.annotate_user_roles(user)
+        queryset = get_permissions_backend().visible(queryset, user)
         queryset = queryset.annotate_with_numchild()
 
         page = self.paginate_queryset(queryset)
