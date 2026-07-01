@@ -7,6 +7,7 @@ from django.core.files.storage import default_storage
 from zipstream import ZipStream
 
 from core import models
+from core.permissions import get_permissions_backend
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def iter_storage_chunks(file_key, chunk_size=DEFAULT_STORAGE_READ_CHUNK_SIZE):
     yield from response["Body"].iter_chunks(chunk_size)
 
 
-def export_descendants(folder):
+def export_descendants(folder, user=None):
     """
     Yield (file_key_or_None, archive_path) tuples for a folder's subtree.
 
@@ -39,7 +40,10 @@ def export_descendants(folder):
     a directory entry (`file_key=None`, trailing slash) for folders or a file
     entry for `FILE` items in the `READY` upload state.
     """
-    descendants = folder.descendants().filter(ancestors_deleted_at__isnull=True).order_by("path")
+    descendants = folder.descendants().filter(ancestors_deleted_at__isnull=True)
+    if user and user.is_authenticated:
+        descendants = get_permissions_backend().visible(descendants, user)
+    descendants = descendants.order_by("path")
 
     relative_paths = {str(folder.path): ""}
     for descendant in descendants:

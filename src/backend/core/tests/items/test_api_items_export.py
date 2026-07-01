@@ -260,6 +260,36 @@ def test_api_items_export_file_missing_from_storage():
         assert archive.read("gone.txt") == b""
 
 
+def test_api_items_export_restricted_excludes_inaccessible_content():
+    """Exporting an ancestor must not expose files hidden by a restricted folder."""
+    excluded_user = factories.UserFactory()
+    explicit_owner = factories.UserFactory()
+    root = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(excluded_user, models.RoleChoices.OWNER)],
+    )
+    restricted = factories.ItemFactory(
+        parent=root,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(explicit_owner, models.RoleChoices.OWNER)],
+    )
+    secret = factories.ItemFactory(
+        parent=restricted,
+        type=models.ItemTypeChoices.FILE,
+        update_upload_state=models.ItemUploadStateChoices.READY,
+        upload_bytes=b"secret",
+        upload_bytes__filename="restricted-secret.txt",
+    )
+    client = APIClient()
+    client.force_login(excluded_user)
+
+    response = client.get(f"/api/v1.0/items/{root.pk}/export/")
+
+    assert response.status_code == 200
+    assert all(secret.filename not in name for name in _zip_names(response))
+
+
 def test_api_items_export_empty_folder():
     """Exporting an empty folder returns an empty zip archive."""
     user = factories.UserFactory()

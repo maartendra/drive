@@ -1627,7 +1627,7 @@ class ItemViewSet(
         """
         folder = self.get_object()
 
-        descendants = export_descendants(folder)
+        descendants = export_descendants(folder, user=request.user)
         zip_stream = build_zip_stream(descendants)
 
         encoded_name = quote(f"{folder.title}.zip", safe="")
