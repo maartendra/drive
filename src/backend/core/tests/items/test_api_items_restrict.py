@@ -155,3 +155,31 @@ def test_api_items_restrict_delete_by_explicit_owner_soft_deletes():
 
     folder.refresh_from_db()
     assert folder.deleted_at is not None
+
+
+def test_api_items_restrict_children_list_excluded_user_has_no_role():
+    """Listing children of a restricted folder does not leak ancestor roles."""
+    excluded_user = factories.UserFactory()
+    grandparent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(excluded_user, "owner")],
+    )
+    folder = factories.ItemFactory(
+        parent=grandparent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    owner = factories.UserFactory()
+    factories.UserItemAccessFactory(item=folder, user=owner, role="owner")
+    factories.UserItemAccessFactory(item=folder, user=excluded_user, role="reader")
+    factories.ItemFactory(parent=folder, type=models.ItemTypeChoices.FOLDER)
+
+    client = APIClient()
+    client.force_login(excluded_user)
+
+    response = client.get(f"/api/v1.0/items/{folder.id!s}/children/")
+    assert response.status_code == 200
+
+    results = response.json()["results"]
+    assert len(results) == 1
+    assert results[0]["user_role"] == "reader"

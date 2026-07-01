@@ -13,7 +13,6 @@ from os.path import splitext
 from django.conf import settings
 from django.contrib.auth import models as auth_models
 from django.contrib.auth.base_user import AbstractBaseUser
-from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GistIndex
 from django.contrib.sites.models import Site
 from django.core import mail, validators
@@ -755,23 +754,7 @@ class AnnotateUserRoleQuerySetMixin:
         Annotate queryset with the roles of the current user
         on the item or its ancestors.
         """
-        output_field = ArrayField(base_field=models.CharField())
-
-        if user.is_authenticated:
-            user_roles_subquery = ItemAccess.objects.filter(
-                models.Q(user=user) | models.Q(team__in=user.teams),
-                item__path__ancestors=models.OuterRef(self.path_property),
-            ).values_list("role", flat=True)
-
-            return self.annotate(
-                user_roles=models.Func(
-                    user_roles_subquery, function="ARRAY", output_field=output_field
-                )
-            )
-
-        return self.annotate(
-            user_roles=models.Value([], output_field=output_field),
-        )
+        return get_permissions_backend().annotate_roles(self, user, path_field=self.path_property)
 
 
 class ItemQuerySet(AnnotateUserRoleQuerySetMixin, TreeQuerySet):
@@ -842,29 +825,6 @@ class ItemQuerySet(AnnotateUserRoleQuerySetMixin, TreeQuerySet):
             return self.annotate(is_favorite=models.Exists(favorite_exists_subquery))
 
         return self.annotate(is_favorite=models.Value(False))
-
-    def annotate_user_roles(self, user):
-        """
-        Annotate item queryset with the roles of the current user
-        on the item or its ancestors.
-        """
-        output_field = ArrayField(base_field=models.CharField())
-
-        if user.is_authenticated:
-            user_roles_subquery = ItemAccess.objects.filter(
-                models.Q(user=user) | models.Q(team__in=user.teams),
-                item__path__ancestors=models.OuterRef("path"),
-            ).values_list("role", flat=True)
-
-            return self.annotate(
-                user_roles=models.Func(
-                    user_roles_subquery, function="ARRAY", output_field=output_field
-                )
-            )
-
-        return self.annotate(
-            user_roles=models.Value([], output_field=output_field),
-        )
 
     def annotate_with_numchild(self):
         """
@@ -1742,10 +1702,7 @@ class ItemAccess(BaseModel):
         try:
             roles = self.user_roles or []
         except AttributeError:
-            roles = ItemAccess.objects.filter(
-                models.Q(user=user) | models.Q(team__in=user.teams),
-                item__path__ancestors=self.item.path,
-            ).values_list("role", flat=True)
+            roles = get_permissions_backend().roles_at(user, self.item.path)
 
         return RoleChoices.max(*roles)
 
@@ -1875,10 +1832,7 @@ class Invitation(BaseModel):
         try:
             roles = self.user_roles or []
         except AttributeError:
-            roles = ItemAccess.objects.filter(
-                models.Q(user=user) | models.Q(team__in=user.teams),
-                item__path__ancestors=self.item.path,
-            ).values_list("role", flat=True)
+            roles = get_permissions_backend().roles_at(user, self.item.path)
 
         return RoleChoices.max(*roles)
 

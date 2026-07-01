@@ -1,7 +1,8 @@
 """Role-based permissions backend."""
 
 from django.conf import settings
-from django.db.models import Exists, OuterRef, Q
+from django.contrib.postgres.fields import ArrayField
+from django.db.models import CharField, Exists, Func, OuterRef, Q, Value
 
 from lasuite.drf.models.choices import (
     LinkReachChoices,
@@ -83,6 +84,26 @@ class RolePermissionsBackend(PermissionsBackend):
         return get_equivalent_link_definition(
             [item.ancestors_link_definition, item.link_definition]
         )
+
+    def annotate_roles(self, queryset, user, path_field="path"):
+        """Annotate the queryset rows with the user's roles as user_roles."""
+        output_field = ArrayField(base_field=CharField())
+
+        if user.is_authenticated:
+            user_roles_subquery = (
+                models.ItemAccess.objects.filter(
+                    Q(user=user) | Q(team__in=user.teams),
+                    item__path__ancestors=OuterRef(path_field),
+                )
+                .exclude(_cut_by_restriction(OuterRef(OuterRef(path_field))))
+                .values_list("role", flat=True)
+            )
+
+            return queryset.annotate(
+                user_roles=Func(user_roles_subquery, function="ARRAY", output_field=output_field)
+            )
+
+        return queryset.annotate(user_roles=Value([], output_field=output_field))
 
     def restriction_roots_below(self, item):
         """Return the restricted descendants not nested under another restricted folder."""

@@ -386,6 +386,22 @@ def test_models_items_restricted_soft_delete_extracts_restricted_descendants():
     assert nested_restricted.ancestors_deleted_at is None
 
 
+def test_models_items_restricted_annotate_user_roles_blocks_inheritance():
+    """Annotated user roles do not leak through a restriction boundary."""
+    user = factories.UserFactory()
+    grandparent = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    factories.UserItemAccessFactory(item=grandparent, user=user, role="owner")
+    parent = factories.ItemFactory(
+        parent=grandparent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    child = factories.ItemFactory(parent=parent, type=models.ItemTypeChoices.FILE)
+
+    annotated_child = models.Item.objects.annotate_user_roles(user).get(pk=child.pk)
+    assert annotated_child.get_role(user) is None
+
+
 @pytest.mark.parametrize("role", models.RoleChoices.values)
 def test_models_items_restricted_get_role_ignores_ancestors(role):
     """No inherited role, regardless of level, produces access on a restricted child."""

@@ -36,6 +36,10 @@ class PermissionsBackend(ABC):
     def restriction_roots_below(self, item):
         """Return the restricted descendants not nested under another restricted folder."""
 
+    @abstractmethod
+    def annotate_roles(self, queryset, user, path_field="path"):
+        """Annotate the queryset rows with the user's roles as user_roles."""
+
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""
         return RoleChoices.max(*self.roles_at(user, path))

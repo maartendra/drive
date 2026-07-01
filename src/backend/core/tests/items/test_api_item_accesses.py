@@ -1447,6 +1447,60 @@ def test_api_item_accesses_delete_owners_last_owner_child_team(
     assert models.ItemAccess.objects.count() == 0
 
 
+def test_api_item_accesses_delete_restricted_ancestor_owner():
+    """An ancestor owner without access to a restricted folder cannot delete its accesses."""
+    ancestor_owner = factories.UserFactory()
+    folder_owner = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(ancestor_owner, models.RoleChoices.OWNER)],
+    )
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+    )
+    access = factories.UserItemAccessFactory(
+        item=folder, user=folder_owner, role=models.RoleChoices.OWNER
+    )
+
+    client = APIClient()
+    client.force_login(ancestor_owner)
+
+    response = client.delete(
+        f"/api/v1.0/items/{folder.id!s}/accesses/{access.id!s}/",
+    )
+
+    assert response.status_code == 403
+    assert models.ItemAccess.objects.filter(item=folder).count() == 1
+
+
+def test_api_item_accesses_delete_restricted_folder_owner():
+    """The owner of a restricted folder can delete an explicit access on it."""
+    folder_owner = factories.UserFactory()
+    other_user = factories.UserFactory()
+    parent = factories.ItemFactory(type=models.ItemTypeChoices.FOLDER)
+    folder = factories.ItemFactory(
+        parent=parent,
+        type=models.ItemTypeChoices.FOLDER,
+        is_restricted=True,
+        users=[(folder_owner, models.RoleChoices.OWNER)],
+    )
+    access = factories.UserItemAccessFactory(
+        item=folder, user=other_user, role=models.RoleChoices.READER
+    )
+
+    client = APIClient()
+    client.force_login(folder_owner)
+
+    response = client.delete(
+        f"/api/v1.0/items/{folder.id!s}/accesses/{access.id!s}/",
+    )
+
+    assert response.status_code == 204
+    assert not models.ItemAccess.objects.filter(id=access.id).exists()
+
+
 ## Realistic case.
 
 
