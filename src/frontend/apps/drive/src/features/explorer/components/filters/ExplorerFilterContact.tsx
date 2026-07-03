@@ -1,19 +1,13 @@
-import { SearchFilter, SearchUserItem } from "@gouvfr-lasuite/ui-kit";
+import { UserSearchFilter, UserSearchFilterItem } from "@gouvfr-lasuite/ui-kit";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { UserLight } from "@/features/drivers/types";
 import { useContacts } from "@/features/users/hooks/useUserQueries";
 
-const CONTACT_RESET = "__contact_reset__";
-
-const contactLabel = (user: UserLight) =>
-  user.full_name || user.short_name || "";
-
-type ContactItem = { id: string; label: string; user?: UserLight };
+const contactLabel = (user?: UserSearchFilterItem) => user?.fullName || "";
 
 export const ExplorerFilterContact = (props: {
-  value: string | null;
-  onChange: (value: string | null) => void;
+  value?: string;
+  onChange: (value?: string) => void;
 }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -28,60 +22,33 @@ export const ExplorerFilterContact = (props: {
   );
 
   const users = contacts ?? [];
-
-  // Derive the active label from the loaded data so it survives a remount,
-  // where local state would be lost while the filter value persists.
-  const activeContact = users.find((user) => user.id === props.value);
-
-  // Reset is always present so the list height does not change on selection,
-  // which the popover would not recompute (it would clip the last row).
-  const items: ContactItem[] = useMemo(() => {
+  const items: UserSearchFilterItem[] = useMemo(() => {
     const userItems = users.map((user) => ({
       id: user.id,
-      label: contactLabel(user),
-      user,
+      label: user.full_name,
+      fullName: user.full_name,
     }));
-    return [
-      { id: CONTACT_RESET, label: t("explorer.filters.contact.reset") },
-      ...userItems,
-    ];
+    return [...userItems];
   }, [users, t]);
 
-  const onItemSelect = (item: ContactItem) => {
-    props.onChange(item.id === CONTACT_RESET ? null : item.id);
-  };
+  const selectedUser: UserSearchFilterItem | undefined = useMemo(() => {
+    return items.find((user) => user.id === props.value);
+  }, [users, props.value]);
 
   return (
-    <SearchFilter<ContactItem>
-      isOpen={isOpen}
-      onOpenChange={setIsOpen}
+    <UserSearchFilter
       label={t("explorer.filters.contact.label")}
-      activeLabel={activeContact ? contactLabel(activeContact) : undefined}
-      isActive={!!props.value}
-      placeholder={t("explorer.filters.contact.placeholder")}
+      activeLabel={selectedUser ? contactLabel(selectedUser) : undefined}
       searchValue={search}
       onSearchChange={setSearch}
       items={items}
+      onItemSelect={(user) => {
+        props.onChange(user?.id);
+      }}
+      selected={selectedUser}
       isLoading={isLoading}
-      emptyState={t("explorer.filters.contact.empty")}
-      renderItem={(item) =>
-        item.id === CONTACT_RESET ? (
-          <div className="explorer__filters__item">
-            <span className="material-icons">undo</span>
-            {t("explorer.filters.contact.reset")}
-          </div>
-        ) : (
-          <div className="explorer__filters__contact">
-            <SearchUserItem user={{ ...item.user!, email: "" }} />
-            {item.id === props.value && (
-              <span className="material-icons explorer__filters__check">
-                check
-              </span>
-            )}
-          </div>
-        )
-      }
-      onItemSelect={onItemSelect}
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
     />
   );
 };

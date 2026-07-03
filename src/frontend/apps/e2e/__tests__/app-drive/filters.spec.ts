@@ -64,7 +64,7 @@ test("Filter items by shared contact", async ({ page }) => {
   await expectRowItemIsNotVisible(page, "Filters folder");
 
   await filtersBar.getByRole("button", { name: /^Shared with/ }).click();
-  await page.getByRole("option", { name: "Reset" }).click();
+  await page.getByRole("button", { name: "Reset" }).click();
 
   await expectRowItem(page, "Quarterly report");
   await expectRowItem(page, "Filters folder");
