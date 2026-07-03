@@ -100,6 +100,15 @@ $tablet: map.get($themes, "default", "globals", "breakpoints", "tablet");
     --v-modal-top: 1rem;
   }
 
+  .c__modal__title {
+    padding-bottom: 6px;
+    font-size: 14px;
+  }
+
+  .quick-search-input-container {
+    margin-top: 0;
+  }
+
   /**
    * I know this next thing seems wtf. The goal is to make ONLY the item list scrollable and the filters and
    * search input fixed. So to do this we need to bring down the constraint of the max-height of the modal down to the
