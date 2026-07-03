@@ -22,6 +22,10 @@ $tablet: map.get($themes, "default", "globals", "breakpoints", "tablet");
 
     .explorer__container {
       width: 992px;
+
+      @media (max-width: $tablet) {
+        width: 100%;
+      }
     }
 
     .explorer__content {
@@ -70,10 +74,15 @@ $tablet: map.get($themes, "default", "globals", "breakpoints", "tablet");
     display: flex;
     align-items: center;
 
+    &__container {
+      @media (max-width: $tablet) {
+        background-color: var(--c--contextuals--background--surface--secondary);
+      }
+    }
+
     @media (max-width: $tablet) {
       padding: 8px;
       height: auto;
-      background-color: var(--c--contextuals--background--surface--secondary);
     }
   }
 
