@@ -6,7 +6,7 @@ test.describe("Search engine indexing prevention", () => {
     await login(page, "drive@example.com");
     await page.goto("/");
     await expect(
-      page.getByRole("button", { name: "Open user menu" }),
+      page.getByRole("button", { name: "User menu" }),
     ).toBeVisible();
 
     const robotsMeta = page.locator('meta[name="robots"][content="noindex"]');

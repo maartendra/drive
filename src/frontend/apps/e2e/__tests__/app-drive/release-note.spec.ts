@@ -43,7 +43,7 @@ test.describe("Release Note", () => {
 
       await page.goto("/");
       await expect(
-        page.getByRole("button", { name: "Open user menu" }),
+        page.getByRole("button", { name: "User menu" }),
       ).toBeVisible();
       await expect(page.getByText("Updates to Drive")).not.toBeVisible();
     });
@@ -100,7 +100,7 @@ test.describe("Release Note", () => {
 
       await page.goto("/");
       await expect(
-        page.getByRole("button", { name: "Open user menu" }),
+        page.getByRole("button", { name: "User menu" }),
       ).toBeVisible();
       await expect(page.getByText("Updates to Drive")).not.toBeVisible();
     });
