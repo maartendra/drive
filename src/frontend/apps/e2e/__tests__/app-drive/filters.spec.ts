@@ -40,7 +40,7 @@ test("Filter items by file type category", async ({ page }) => {
   await expectRowItemIsNotVisible(page, "Quarterly report");
 
   await filtersBar.getByRole("button", { name: /^Type/ }).click();
-  await page.getByRole("option", { name: "Reset" }).click();
+  await page.getByRole("button", { name: "Reset" }).click();
 
   await expectRowItem(page, "Quarterly report");
   await expectRowItem(page, "Holiday photo");
