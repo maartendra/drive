@@ -21,7 +21,6 @@ import {
   useGlobalExplorer,
 } from "../../GlobalExplorerContext";
 import {
-  ALL,
   ExplorerFilterCategory,
   ExplorerFilterContact,
   ExplorerFilterLocation,
@@ -29,15 +28,9 @@ import {
   handleFilterChange,
 } from "@/features/explorer/components/filters";
 import { ItemFilters } from "@/features/drivers/Driver";
-import { Key } from "react-aria-components";
 import { clearFromRoute, getItemTitle } from "@/features/explorer/utils/utils";
 import { messageModalTrashNavigate } from "../../trash/utils";
 import { useAuth } from "@/features/auth/Auth";
-import {
-  applyDateRange,
-  DateRange,
-  dateRangeFromFilters,
-} from "@/features/explorer/utils/dateFilters";
 import { openWopiInNewTab } from "@/features/wopi/openWopi";
 import { itemToPreviewFile } from "@/features/explorer/utils/utils";
 
@@ -89,13 +82,8 @@ export const ExplorerSearchModal = (props: ExplorerSearchModalProps) => {
     setInputValue(str);
   };
 
-  const onFilterChange = (name: string, value: Key | null) => {
+  const onFilterChange = (name: string, value: unknown) => {
     setFilters(handleFilterChange(filters, name, value));
-  };
-
-  // The modification date filter drives two query params at once.
-  const onModifiedChange = (range: DateRange | null) => {
-    setFilters(applyDateRange(filters, range));
   };
 
   const modals = useModals();
@@ -172,13 +160,13 @@ export const ExplorerSearchModal = (props: ExplorerSearchModalProps) => {
               {/* Contacts and user search both require authentication. */}
               {user && (
                 <ExplorerFilterContact
-                  value={filters?.contact ?? null}
-                  onChange={(value) => onFilterChange("contact", value ?? ALL)}
+                  value={filters?.contact}
+                  onChange={(value) => onFilterChange("contact", value)}
                 />
               )}
               <ExplorerFilterModified
-                value={dateRangeFromFilters(filters)}
-                onChange={onModifiedChange}
+                onChange={(value) => onFilterChange("modified", value)}
+                value={filters?.modified}
               />
             </div>
           </SmartScroller>

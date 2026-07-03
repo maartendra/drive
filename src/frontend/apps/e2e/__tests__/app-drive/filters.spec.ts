@@ -86,7 +86,7 @@ test("Filter items by modification date", async ({ page }) => {
   await expectRowItemIsNotVisible(page, "Old report");
 
   await filtersBar.getByRole("button", { name: /^Modified/ }).click();
-  await page.getByRole("option", { name: "Reset" }).click();
+  await page.getByRole("button", { name: "Reset" }).click();
 
   await expectRowItem(page, "Old report");
 });
@@ -146,12 +146,12 @@ test("Filter items by modification date custom", async ({ page }) => {
   await expect(page.getByRole("option", { name: rangeLabel })).toBeVisible();
   await expect(page.getByRole("option", { name: "Custom" })).not.toBeVisible();
 
-  await page.getByRole("option", { name: "Reset" }).click();
+  await page.getByRole("button", { name: "Reset" }).click();
 
   await expectRowItem(page, "Old report");
 
-  // After reset, the option falls back to its default "Custom" label.
-  await filtersBar.getByRole("button", { name: /^Modified/ }).click();
+  // The reset button keeps the panel open; the option falls back to its
+  // default "Custom" label.
   await expect(page.getByRole("option", { name: "Custom" })).toBeVisible();
   await expect(page.getByRole("option", { name: rangeLabel })).not.toBeVisible();
 });

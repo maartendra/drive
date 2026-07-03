@@ -29,6 +29,7 @@ import {
   WopiInfo,
 } from "../types";
 import { DTODeleteAccess } from "../DTOs/AccessesDTO";
+import { convertFiltersToQueryParams } from "@/features/explorer/components/filters/filterUtils";
 
 export class StandardDriver extends Driver {
   async getConfig(): Promise<ApiConfig> {
@@ -41,7 +42,7 @@ export class StandardDriver extends Driver {
     const params = {
       page: 1,
       page_size: 100,
-      ...(filters ? filters : {}),
+      ...(filters ? convertFiltersToQueryParams(filters) : {}),
     };
     const response = await fetchAPI(`items/`, {
       params,
@@ -65,7 +66,7 @@ export class StandardDriver extends Driver {
 
   async searchItems(filters?: ItemFilters): Promise<Item[]> {
     const response = await fetchAPI(`items/search/`, {
-      params: filters,
+      params: convertFiltersToQueryParams(filters ?? {}),
     });
     const data = await response.json();
     return jsonToItems(data.results);
@@ -73,7 +74,7 @@ export class StandardDriver extends Driver {
 
   async getTrashItems(filters?: ItemFilters): Promise<Item[]> {
     const response = await fetchAPI(`items/trashbin/`, {
-      params: { ...filters, page_size: 200 },
+      params: { ...convertFiltersToQueryParams(filters ?? {}), page_size: 200 },
     });
     const data = await response.json();
     return jsonToItems(data.results);
@@ -134,7 +135,7 @@ export class StandardDriver extends Driver {
     const params = {
       page: 1,
       page_size: filters?.page_size || 200,
-      ...(filters ? filters : {}),
+      ...(filters ? convertFiltersToQueryParams(filters) : {}),
     };
 
     const response = await fetchAPI(`items/${id}/children/`, {
@@ -307,7 +308,7 @@ export class StandardDriver extends Driver {
     filters?: ItemFilters,
   ): Promise<PaginatedChildrenResult> {
     const response = await fetchAPI(`items/recents/`, {
-      params: { ...filters, page_size: 200 },
+      params: { ...convertFiltersToQueryParams(filters ?? {}), page_size: 200 },
     });
     const data = await response.json();
     return {
@@ -324,7 +325,7 @@ export class StandardDriver extends Driver {
     filters?: ItemFilters,
   ): Promise<PaginatedChildrenResult> {
     const response = await fetchAPI(`items/favorite_list/`, {
-      params: { ...filters, page_size: 200 },
+      params: { ...convertFiltersToQueryParams(filters ?? {}), page_size: 200 },
     });
 
     const data = await response.json();

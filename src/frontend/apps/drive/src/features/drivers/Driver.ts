@@ -1,3 +1,4 @@
+import { ExplorerFilterModifiedValue } from "../explorer/components/filters/ExplorerFilterModified";
 import {
   DTOCreateAccess,
   DTODeleteAccess,
@@ -43,6 +44,10 @@ export type ItemFilters = {
   category?: string;
   contact?: string;
   location?: string;
+
+  // This filter is not sent to the backend, it is only used to filter the items in the frontend.
+  // Actual filters are updated_at_after and updated_at_before.
+  modified?: ExplorerFilterModifiedValue;
   updated_at_after?: string;
   updated_at_before?: string;
 };

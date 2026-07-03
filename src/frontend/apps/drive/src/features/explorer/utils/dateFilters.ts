@@ -31,7 +31,10 @@ const addDays = (date: Date, days: number): Date => {
  * Compute the modification date range for a preset, today included as the upper
  * bound. `today` is injectable for deterministic tests.
  */
-export const presetRange = (preset: DatePreset, today: Date = new Date()): DateRange => {
+export const presetRange = (preset?: DatePreset, today: Date = new Date()): DateRange | undefined => {
+  if (!preset) {
+    return undefined;
+  }
   if (preset === "more_than_a_year") {
     const before = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
     return { updated_at_before: toISODate(before) };
@@ -61,7 +64,7 @@ export const presetRange = (preset: DatePreset, today: Date = new Date()): DateR
 /** Replace the modification date bounds of the filters with the given range. */
 export const applyDateRange = (
   filters: ItemFilters,
-  range: DateRange | null,
+  range?: DateRange,
 ): ItemFilters => {
   const next = { ...filters };
   delete next.updated_at_after;

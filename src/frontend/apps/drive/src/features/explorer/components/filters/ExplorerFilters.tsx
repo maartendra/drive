@@ -1,10 +1,4 @@
-import { Key } from "react-aria-components";
 import { useAppExplorer } from "@/features/explorer/components/app-view/AppExplorer";
-import {
-  applyDateRange,
-  dateRangeFromFilters,
-  DateRange,
-} from "@/features/explorer/utils/dateFilters";
 import { useAuth } from "@/features/auth/Auth";
 import { ALL, handleFilterChange } from "./filterUtils";
 import { ExplorerFilterCategory } from "./ExplorerFilterCategory";
@@ -15,13 +9,8 @@ export const ExplorerFilters = () => {
   const { filters, onFiltersChange } = useAppExplorer();
   const { user } = useAuth();
 
-  const onChange = (name: string, value: Key | null) => {
+  const onChange = (name: string, value: unknown) => {
     onFiltersChange?.(handleFilterChange(filters, name, value));
-  };
-
-  // The modification date filter drives two query params at once.
-  const onModifiedChange = (range: DateRange | null) => {
-    onFiltersChange?.(applyDateRange(filters, range));
   };
 
   return (
@@ -33,13 +22,13 @@ export const ExplorerFilters = () => {
       {/* Contacts and user search both require authentication. */}
       {user && (
         <ExplorerFilterContact
-          value={filters?.contact ?? null}
+          value={filters?.contact}
           onChange={(value) => onChange("contact", value ?? ALL)}
         />
       )}
       <ExplorerFilterModified
-        value={dateRangeFromFilters(filters ?? {})}
-        onChange={onModifiedChange}
+        value={filters?.modified}
+        onChange={(value) => onChange("modified", value ?? null)}
       />
     </div>
   );
