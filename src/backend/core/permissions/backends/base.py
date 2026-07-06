@@ -28,6 +28,10 @@ class PermissionsBackend(ABC):
     def link_definition_for(self, item):
         """Return the effective link definition of the item, own and inherited combined."""
 
+    @abstractmethod
+    def abilities(self, user, item):
+        """Compute and return abilities for a given user on the item."""
+
     def role_at(self, user, path):
         """Return the highest role the user holds at the given path."""
         return RoleChoices.max(*self.roles_at(user, path))
