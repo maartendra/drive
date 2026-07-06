@@ -119,12 +119,30 @@ class RolePermissionsBackend(PermissionsBackend):
         can_manage = is_owner_or_admin and not is_deleted
         can_update = (is_owner_or_admin or role == RoleChoices.EDITOR) and not is_deleted
         can_create_children = can_update and user.is_authenticated
-        can_hard_delete = (
-            is_owner
-            if item.is_root
-            else (is_owner_or_admin or (user.is_authenticated and item.creator == user))
+        creator_can_delete = (
+            user.is_authenticated
+            and item.creator_id == user.id
+            and (not item.is_restricted or has_access_role)
         )
-        can_destroy = can_hard_delete and not is_deleted
+        can_hard_delete = is_owner if item.is_root else (is_owner_or_admin or creator_can_delete)
+        # Cheapest conditions first: the parent role check costs a query
+        is_container_owner = False
+        needs_container_owner_check = (
+            not is_deleted
+            and not can_get
+            and not can_hard_delete
+            and user.is_authenticated
+            and item.is_restricted
+            and item.depth > 1
+        )
+        if needs_container_owner_check:
+            parent = (
+                models.Item.objects.annotate_user_roles(user)
+                .filter(path=str(item.path[:-1]))
+                .first()
+            )
+            is_container_owner = parent is not None and parent.get_role(user) == RoleChoices.OWNER
+        can_destroy = (can_hard_delete or is_container_owner) and not is_deleted
         can_duplicate = (
             can_get
             and user.is_authenticated
@@ -143,6 +161,7 @@ class RolePermissionsBackend(PermissionsBackend):
             and bool(target_extension_for(item.extension))
             and bool(settings.WOPI_ONLYOFFICE_CONVERT_JWT_SECRET)
         )
+        can_restrict = is_owner and not is_deleted and item.type == models.ItemTypeChoices.FOLDER
 
         return {
             "accesses_manage": can_manage,
@@ -160,6 +179,7 @@ class RolePermissionsBackend(PermissionsBackend):
             "invite_owner": is_owner and not is_deleted,
             "link_select_options": link_select_options,
             "move": can_manage,
+            "restrict": can_restrict,
             "restore": is_owner,
             "retrieve": retrieve,
             "tree": can_get,
