@@ -1535,3 +1535,27 @@ def test_api_items_children_list_filter_contact_inherited():
     assert response.status_code == 200
     results = response.json()["results"]
     assert {result["id"] for result in results} == {str(child.id)}
+
+
+def test_api_items_children_list_restricted_nb_accesses():
+    """A restricted child folder only counts its own accesses."""
+    user = factories.UserFactory()
+    parent = factories.ItemFactory(
+        type=models.ItemTypeChoices.FOLDER,
+        users=[(user, models.RoleChoices.OWNER)],
+    )
+    sibling = factories.ItemFactory(parent=parent, type=models.ItemTypeChoices.FOLDER)
+    restricted = factories.ItemFactory(
+        parent=parent, type=models.ItemTypeChoices.FOLDER, is_restricted=True
+    )
+    factories.UserItemAccessFactory(item=restricted)
+
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.get(f"/api/v1.0/items/{parent.id!s}/children/")
+
+    assert response.status_code == 200
+    results = {result["id"]: result["nb_accesses"] for result in response.json()["results"]}
+    assert results[str(sibling.id)] == 1
+    assert results[str(restricted.id)] == 1

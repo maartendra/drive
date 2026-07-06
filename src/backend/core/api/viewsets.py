@@ -1124,11 +1124,15 @@ class ItemViewSet(
         # Apply ordering only now that everything is filtered and annotated
         queryset = ItemOrdering().filter_queryset(self.request, queryset, self)
 
-        # Pre-compute number of accesses
+        # Pre-compute number of accesses; the parent's count does not apply
+        # to restricted children which cut inheritance
         item_nb_accesses = item.nb_accesses
+        direct_accesses_count = Coalesce(db.Count("accesses", distinct=True), 0)
         queryset = queryset.annotate(
-            _nb_accesses=db.Value(item_nb_accesses)
-            + Coalesce(db.Count("accesses", distinct=True), 0),
+            _nb_accesses=db.Case(
+                db.When(is_restricted=True, then=direct_accesses_count),
+                default=db.Value(item_nb_accesses) + direct_accesses_count,
+            ),
         )
 
         # Pass ancestors' links paths mapping to the serializer as a context variable
