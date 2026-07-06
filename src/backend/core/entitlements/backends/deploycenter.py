@@ -89,7 +89,8 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
             return {}
 
         entitlements = self.get_entitlements(user)
-        print(entitlements)
+        import json
+        print(json.dumps(entitlements, indent=4))
         can_upload = entitlements.get("entitlements", {}).get("can_upload", False)
         can_upload_resolve_level = entitlements.get("entitlements", {}).get("can_upload_resolve_level", False)
         can_upload_reason = entitlements.get("entitlements", {}).get("can_upload_reason", None)
@@ -105,21 +106,21 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
         if not can_upload and entitlement_organization and can_upload_resolve_level == "organization":
             return {"state": "excedeed_locked", "reason": "organization_quota_excedeed"}
 
-        metric_account = entitlements.get("entitlements", {}).get("can_upload_metric_account", {})
-        entitlement_account = entitlements.get("entitlements", {}).get("can_upload_entitlement_account", {})
+        metric_account = entitlements.get("metrics", {}).get("account", {})
+        max_storage_account = entitlements.get("entitlements", {}).get("max_storage_account", {})
         
         if not metric_account:
             return {
                 "error": "metric_account_not_found"
             }
 
-        if not entitlement_account:
+        if not max_storage_account:
             return {
-                "error": "entitlement_account_not_found"
+                "error": "max_storage_account_not_found"
             }
 
         return {
             "state": "default",
-            "usage": metric_account.get("value", 0),
-            "limit": entitlement_account.get("max_storage", 0),
+            "usage": metric_account.get("storage_used", 0),
+            "limit": max_storage_account,
         }
