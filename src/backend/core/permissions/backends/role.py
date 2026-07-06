@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.db.models import CharField, Exists, Func, OuterRef, Q, Value
+from django.utils.functional import cached_property
 
 from lasuite.drf.models.choices import (
     LinkReachChoices,
@@ -24,6 +25,213 @@ def _cut_by_restriction(path, path_field="item__path"):
             path__descendants=OuterRef(path_field),
         ).exclude(path=OuterRef(path_field))
     )
+
+
+class ItemAbilities:  # pylint: disable=too-many-public-methods
+    """Compute the abilities of a user on an item, one property per ability."""
+
+    def __init__(self, user, item):
+        self.user = user
+        self.item = item
+
+    @cached_property
+    def access_role(self):
+        """Return the role held through accesses only, before any link boost."""
+        return self.item.get_role(self.user)
+
+    @cached_property
+    def role(self):
+        """Return the effective role, link definition included."""
+        link_definition = self.item.computed_link_definition
+        link_reach = link_definition["link_reach"]
+        if link_reach == LinkReachChoices.PUBLIC or (
+            link_reach == LinkReachChoices.AUTHENTICATED and self.user.is_authenticated
+        ):
+            # The highest of the access role and the link role, needed for a user
+            # with an access lower than the link role and for a user without access
+            return RoleChoices.max(self.access_role, link_definition["link_role"])
+        return self.access_role
+
+    @cached_property
+    def is_deleted(self):
+        """Return whether the item or one of its ancestors is soft deleted."""
+        return bool(self.item.ancestors_deleted_at)
+
+    @cached_property
+    def is_owner(self):
+        """Return whether the user holds an owner role through accesses."""
+        return self.access_role == RoleChoices.OWNER
+
+    @cached_property
+    def is_owner_or_admin(self):
+        """Return whether the user holds an owner or administrator role through accesses."""
+        return self.is_owner or self.access_role == RoleChoices.ADMIN
+
+    @cached_property
+    def has_access_role(self):
+        """Return whether the user holds a role through accesses on a live item."""
+        # Based on accesses only so that anonymous users granted by a link
+        # cannot see item accesses or versions
+        return bool(self.access_role) and not self.is_deleted
+
+    @cached_property
+    def link_select_options(self):
+        """Return the link reach and role options selectable on the item."""
+        if not self.has_access_role:
+            return {}
+        return LinkReachChoices.get_select_options(**self.item.ancestors_link_definition)
+
+    @property
+    def can_get(self):
+        """Return whether the user can read the item."""
+        return bool(self.role) and not self.is_deleted
+
+    @property
+    def can_retrieve(self):
+        """Return whether the user can retrieve the item, even soft deleted."""
+        return self.can_get or self.is_owner
+
+    @property
+    def can_manage(self):
+        """Return whether the user can manage the item and its accesses."""
+        return self.is_owner_or_admin and not self.is_deleted
+
+    @property
+    def can_update(self):
+        """Return whether the user can modify the item."""
+        return (self.is_owner_or_admin or self.role == RoleChoices.EDITOR) and not self.is_deleted
+
+    @property
+    def can_create_children(self):
+        """Return whether the user can create children in the item."""
+        return self.can_update and self.user.is_authenticated
+
+    @cached_property
+    def can_hard_delete(self):
+        """Return whether the user can delete the item permanently."""
+        if self.item.is_root:
+            return self.is_owner
+        creator_can_delete = (
+            self.user.is_authenticated
+            and self.item.creator_id == self.user.id
+            and (not self.item.is_restricted or self.has_access_role)
+        )
+        return self.is_owner_or_admin or creator_can_delete
+
+    @cached_property
+    def is_container_owner(self):
+        """Return whether the user owns the folder containing this restricted item."""
+        # Cheapest conditions first: the parent role check costs a query
+        needs_parent_check = (
+            not self.is_deleted
+            and not self.can_get
+            and not self.can_hard_delete
+            and self.user.is_authenticated
+            and self.item.is_restricted
+            and self.item.depth > 1
+        )
+        if not needs_parent_check:
+            return False
+        parent = (
+            models.Item.objects.annotate_user_roles(self.user)
+            .filter(path=str(self.item.path[:-1]))
+            .first()
+        )
+        return parent is not None and parent.get_role(self.user) == RoleChoices.OWNER
+
+    @property
+    def can_destroy(self):
+        """Return whether the user can remove the item, by deletion or uprooting."""
+        return (self.can_hard_delete or self.is_container_owner) and not self.is_deleted
+
+    @property
+    def can_duplicate(self):
+        """Return whether the user can duplicate the file."""
+        return (
+            self.can_get
+            and self.user.is_authenticated
+            and self.item.type == models.ItemTypeChoices.FILE
+            and self.item.upload_state == models.ItemUploadStateChoices.READY
+        )
+
+    @property
+    def can_export(self):
+        """Return whether the user can export the folder as an archive."""
+        return self.can_get and self.item.type == models.ItemTypeChoices.FOLDER
+
+    @property
+    def can_convert(self):
+        """Return whether the user can convert the file to another format."""
+        return (
+            self.can_update
+            and self.item.type == models.ItemTypeChoices.FILE
+            and self.item.upload_state
+            in (
+                models.ItemUploadStateChoices.READY,
+                models.ItemUploadStateChoices.ANALYZING,
+            )
+            and bool(target_extension_for(self.item.extension))
+            and bool(settings.WOPI_ONLYOFFICE_CONVERT_JWT_SECRET)
+        )
+
+    @property
+    def can_restrict(self):
+        """Return whether the user can restrict the folder."""
+        return (
+            self.is_owner
+            and not self.is_deleted
+            and self.item.type == models.ItemTypeChoices.FOLDER
+        )
+
+    @property
+    def can_favorite(self):
+        """Return whether the user can mark the item as favorite."""
+        return self.can_get and self.user.is_authenticated
+
+    @property
+    def can_invite_owner(self):
+        """Return whether the user can invite another owner on the item."""
+        return self.is_owner and not self.is_deleted
+
+    @property
+    def can_restore(self):
+        """Return whether the user can restore the item from the trash."""
+        return self.is_owner
+
+    @property
+    def can_upload_ended(self):
+        """Return whether the user can mark an upload on the item as ended."""
+        return self.can_update and self.user.is_authenticated
+
+    def as_dict(self):
+        """Return the ability mapping exposed by the API."""
+        return {
+            "accesses_manage": self.can_manage,
+            "accesses_view": self.has_access_role,
+            "breadcrumb": self.can_get,
+            "children_list": self.can_get,
+            "children_create": self.can_create_children,
+            "destroy": self.can_destroy,
+            "download": self.can_get,
+            "duplicate": self.can_duplicate,
+            "export": self.can_export,
+            "hard_delete": self.can_hard_delete,
+            "favorite": self.can_favorite,
+            "link_configuration": self.can_manage,
+            "invite_owner": self.can_invite_owner,
+            "link_select_options": self.link_select_options,
+            "move": self.can_manage,
+            "restrict": self.can_restrict,
+            "restore": self.can_restore,
+            "retrieve": self.can_retrieve,
+            "tree": self.can_get,
+            "media_auth": self.can_get,
+            "partial_update": self.can_update,
+            "update": self.can_update,
+            "upload_ended": self.can_upload_ended,
+            "wopi": self.can_get,
+            "convert": self.can_convert,
+        }
 
 
 class RolePermissionsBackend(PermissionsBackend):
@@ -139,109 +347,6 @@ class RolePermissionsBackend(PermissionsBackend):
             )
         )
 
-    def abilities(self, user, item):  # pylint: disable=too-many-locals
+    def abilities(self, user, item):
         """Compute and return abilities for a given user on the item."""
-        # First get the role based on specific access
-        role = item.get_role(user)
-        # Characteristics that are based only on specific access
-        is_owner = role == RoleChoices.OWNER
-        is_deleted = item.ancestors_deleted_at
-        is_owner_or_admin = is_owner or role == RoleChoices.ADMIN
-
-        # Compute access roles before adding link roles because we don't
-        # want anonymous users to access versions (we wouldn't know from
-        # which date to allow them anyway)
-        # Anonymous users should also not see item accesses
-        has_access_role = bool(role) and not is_deleted
-        link_select_options = (
-            LinkReachChoices.get_select_options(**item.ancestors_link_definition)
-            if has_access_role
-            else {}
-        )
-
-        link_definition = item.computed_link_definition
-
-        link_reach = link_definition["link_reach"]
-        if link_reach == LinkReachChoices.PUBLIC or (
-            link_reach == LinkReachChoices.AUTHENTICATED and user.is_authenticated
-        ):
-            # Set the user role to the highest role between the item role and the link role
-            # Needed for a user with an access lower than link_role
-            # Needed for a user without access to determine the role he has.
-            role = RoleChoices.max(role, link_definition["link_role"])
-        can_get = bool(role) and not is_deleted
-        retrieve = can_get or is_owner
-        can_manage = is_owner_or_admin and not is_deleted
-        can_update = (is_owner_or_admin or role == RoleChoices.EDITOR) and not is_deleted
-        can_create_children = can_update and user.is_authenticated
-        creator_can_delete = (
-            user.is_authenticated
-            and item.creator_id == user.id
-            and (not item.is_restricted or has_access_role)
-        )
-        can_hard_delete = is_owner if item.is_root else (is_owner_or_admin or creator_can_delete)
-        # Cheapest conditions first: the parent role check costs a query
-        is_container_owner = False
-        needs_container_owner_check = (
-            not is_deleted
-            and not can_get
-            and not can_hard_delete
-            and user.is_authenticated
-            and item.is_restricted
-            and item.depth > 1
-        )
-        if needs_container_owner_check:
-            parent = (
-                models.Item.objects.annotate_user_roles(user)
-                .filter(path=str(item.path[:-1]))
-                .first()
-            )
-            is_container_owner = parent is not None and parent.get_role(user) == RoleChoices.OWNER
-        can_destroy = (can_hard_delete or is_container_owner) and not is_deleted
-        can_duplicate = (
-            can_get
-            and user.is_authenticated
-            and item.type == models.ItemTypeChoices.FILE
-            and item.upload_state == models.ItemUploadStateChoices.READY
-        )
-        can_export = can_get and item.type == models.ItemTypeChoices.FOLDER
-        can_convert = (
-            can_update
-            and item.type == models.ItemTypeChoices.FILE
-            and item.upload_state
-            in (
-                models.ItemUploadStateChoices.READY,
-                models.ItemUploadStateChoices.ANALYZING,
-            )
-            and bool(target_extension_for(item.extension))
-            and bool(settings.WOPI_ONLYOFFICE_CONVERT_JWT_SECRET)
-        )
-        can_restrict = is_owner and not is_deleted and item.type == models.ItemTypeChoices.FOLDER
-
-        return {
-            "accesses_manage": can_manage,
-            "accesses_view": has_access_role,
-            "breadcrumb": can_get,
-            "children_list": can_get,
-            "children_create": can_create_children,
-            "destroy": can_destroy,
-            "download": can_get,
-            "duplicate": can_duplicate,
-            "export": can_export,
-            "hard_delete": can_hard_delete,
-            "favorite": can_get and user.is_authenticated,
-            "link_configuration": can_manage,
-            "invite_owner": is_owner and not is_deleted,
-            "link_select_options": link_select_options,
-            "move": can_manage,
-            "restrict": can_restrict,
-            "restore": is_owner,
-            "retrieve": retrieve,
-            "tree": can_get,
-            "media_auth": can_get,
-            "partial_update": can_update,
-            "update": can_update,
-            "upload_ended": can_update and user.is_authenticated,
-            "wopi": can_get,
-            "convert": can_convert,
-        }
+        return ItemAbilities(user, item).as_dict()
