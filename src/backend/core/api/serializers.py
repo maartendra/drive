@@ -761,28 +761,8 @@ class LinkItemSerializer(serializers.ModelSerializer):
             "link_reach",
         ]
 
-    def validate(self, attrs):
-        """Validate that link_role and link_reach are compatible using get_select_options."""
-        link_reach = attrs.get("link_reach")
-        link_role = attrs.get("link_role")
-
-        if not link_reach:
-            raise serializers.ValidationError({"link_reach": _("This field is required.")})
-
-        # Restricted folders are independent of parent link configuration
-        if self.instance.is_restricted:
-            if link_reach == LinkReachChoices.RESTRICTED and link_role is not None:
-                raise serializers.ValidationError(
-                    {
-                        "link_role": (
-                            "Cannot set link_role when link_reach is 'restricted'. "
-                            "Link role must be null for restricted reach."
-                        )
-                    }
-                )
-            return attrs
-
-        # Get available options based on ancestors' link definition
+    def _validate_against_ancestors(self, link_reach, link_role):
+        """Validate the link definition against the options allowed by ancestors."""
         available_options = LinkReachChoices.get_select_options(
             **self.instance.ancestors_link_definition
         )
@@ -814,11 +794,33 @@ class LinkItemSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {
                     "link_role": (
-                        f"Link role '{link_role}' is not allowed for link reach '{link_reach}'. "
-                        f"Allowed roles: {allowed_roles_str}"
+                        f"Link role '{link_role}' is not allowed for link reach "
+                        f"'{link_reach}'. Allowed roles: {allowed_roles_str}"
                     )
                 }
             )
+
+    def validate(self, attrs):
+        """Validate that link_role and link_reach are compatible using get_select_options."""
+        link_reach = attrs.get("link_reach")
+        link_role = attrs.get("link_role")
+
+        if not link_reach:
+            raise serializers.ValidationError({"link_reach": _("This field is required.")})
+
+        # Restricted folders are independent of parent link configuration
+        if self.instance.is_restricted:
+            if link_reach == LinkReachChoices.RESTRICTED and link_role is not None:
+                raise serializers.ValidationError(
+                    {
+                        "link_role": (
+                            "Cannot set link_role when link_reach is 'restricted'. "
+                            "Link role must be null for restricted reach."
+                        )
+                    }
+                )
+        else:
+            self._validate_against_ancestors(link_reach, link_role)
 
         return attrs
 
