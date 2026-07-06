@@ -480,8 +480,9 @@ def test_services_search_indexers_index_errors(indexer_settings):
         body=json_dumps({"message": "Authentication failed."}),
     )
 
+    indexer = SearchIndexer()
     with pytest.raises(HTTPError):
-        SearchIndexer().index()
+        indexer.index()
 
 
 @patch.object(SearchIndexer, "push")
@@ -872,8 +873,9 @@ def test_services_search_indexers_search_errors(indexer_settings):
         body=json_dumps({"message": "Authentication failed."}),
     )
 
+    indexer = SearchIndexer()
     with pytest.raises(HTTPError):
-        SearchIndexer().search("alpha", token="mytoken")
+        indexer.search("alpha", token="mytoken")
 
 
 @patch("requests.post")
