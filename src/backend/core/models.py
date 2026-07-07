@@ -1484,7 +1484,7 @@ class Item(TreeModel, BaseModel):
             self.link_reach = LinkReachChoices.RESTRICTED
             self.save(update_fields=["link_reach"])
 
-    def uproot(self):
+    def uproot(self) -> None:
         """Move a restricted folder to root, preserving its accesses and content."""
         self.move(None)
 
