@@ -19,7 +19,7 @@ from core.permissions.backends.base import PermissionsBackend
 from wopi.conversion.policy import target_extension_for
 
 
-def _cut_by_restriction(path, path_field="item__path"):
+def _cut_by_restriction(path: str, path_field: str = "item__path") -> Exists:
     """Build a subquery matching rows separated from the given path by a restricted folder."""
     return Exists(
         models.Item.objects.filter(
