@@ -656,6 +656,15 @@
           "close": "OK",
           "cannot_upload": {
             "title": "Les téléversements ne sont pas disponibles",
+            "resolve_level_user": {
+              "description": "Vous ne pouvez plus ajouter de documents, votre quota personnel est atteint. Contactez votre administrateur."
+            },
+            "resolve_level_user_override": {
+              "description": "Vous ne pouvez plus ajouter de documents, votre quota personnel est atteint. Contactez votre administrateur."
+            },
+            "resolve_level_organization": {
+              "description": "Vous ne pouvez plus ajouter de documents, votre quota d'organisation est atteint. Contactez votre administrateur."
+            },
             "no_organization": {
               "description": "Votre compte n'est pas rattaché à une organisation, vous ne pouvez pas encore téléverser de fichiers. Contactez votre administrateur pour obtenir un accès."
             },
@@ -676,6 +685,14 @@
       "403": {
         "title": "Vous n'avez pas les permissions nécessaires pour accéder à cette page.",
         "button": "Accueil"
+      },
+      "settings_modal": {
+        "title": "Paramètres",
+        "tabs": {
+          "storage": {
+            "title": "Stockage"
+          }
+        }
       },
       "share_modal": {
         "options": {
@@ -1828,7 +1845,7 @@
         "copy_link": "Kopieer link",
         "languages": "Talen"
       },
- 
+
       "time": {
         "years_ago_one": "{{count}} jaar geleden",
         "years_ago_other": "{{count}} jaren geleden",

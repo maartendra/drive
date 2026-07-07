@@ -51,24 +51,10 @@ const Content = ({
   entitlements: Entitlements;
 }) => {
   const { t } = useTranslation();
+  const reasonTitle = getCannotUploadReasonDescription(entitlements.can_upload.reason);
   return (
     <div>
-      {entitlements.can_upload.reason ===
-        EntitlementCanUploadReasons.NOT_ACTIVATED && (
-        <p>
-          {t(
-            "entitlements.disclaimers.cannot_upload.not_activated.description",
-          )}
-        </p>
-      )}
-      {entitlements.can_upload.reason ===
-        EntitlementCanUploadReasons.NO_ORGANIZATION && (
-        <p>
-          {t(
-            "entitlements.disclaimers.cannot_upload.no_organization.description",
-          )}
-        </p>
-      )}
+      {reasonTitle && <p>{reasonTitle}</p>}
       {config?.showPotentialOperators &&
         (entitlements.context?.potentialOperators?.length ?? 0) > 0 && (
           <div>
@@ -104,6 +90,35 @@ const Content = ({
         )}
     </div>
   );
+};
+
+export const getCannotUploadReasonDescription = (
+  reason?: EntitlementCanUploadReasons,
+) => {
+  switch (reason) {
+    case EntitlementCanUploadReasons.NOT_ACTIVATED:
+      return i18n.t(
+        "entitlements.disclaimers.cannot_upload.not_activated.description",
+      );
+    case EntitlementCanUploadReasons.RESOLVE_LEVEL_USER:
+      return i18n.t(
+        "entitlements.disclaimers.cannot_upload.resolve_level_user.description",
+      );
+    case EntitlementCanUploadReasons.RESOLVE_LEVEL_USER_OVERRIDE:
+      return i18n.t(
+        "entitlements.disclaimers.cannot_upload.resolve_level_user_override.description",
+      );
+    case EntitlementCanUploadReasons.RESOLVE_LEVEL_ORGANIZATION:
+      return i18n.t(
+        "entitlements.disclaimers.cannot_upload.resolve_level_organization.description",
+      );
+    case EntitlementCanUploadReasons.NO_ORGANIZATION:
+      return i18n.t(
+        "entitlements.disclaimers.cannot_upload.no_organization.description",
+      );
+    default:
+      return undefined;
+  }
 };
 
 export default CannotUploadDisclaimer;

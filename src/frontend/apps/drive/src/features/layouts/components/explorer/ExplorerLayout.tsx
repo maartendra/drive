@@ -1,7 +1,13 @@
 import { useAuth } from "@/features/auth/Auth";
 import { useConfig } from "@/features/config/ConfigProvider";
 import { ExplorerTree } from "@/features/explorer/components/tree/ExplorerTree";
-import { HelpMenu, MainLayout } from "@gouvfr-lasuite/ui-kit";
+import {
+  HelpMenu,
+  IconSize,
+  MainLayout,
+  StorageGaugeButton,
+  StorageGaugeInformation,
+} from "@gouvfr-lasuite/ui-kit";
 import { HeaderIcon, HeaderRight } from "../header/Header";
 import {
   GlobalExplorerProvider,
@@ -15,9 +21,25 @@ import { useRouter } from "next/router";
 import { useSyncUserLanguage } from "../../hooks/useSyncUserLanguage";
 import { Item } from "@/features/drivers/types";
 import { ReleaseNoteAuto } from "@/features/ui/components/release-note";
-import { setManualNavigationItemId } from "@/features/explorer/utils/utils";
+import {
+  formatSizeTo,
+  setManualNavigationItemId,
+} from "@/features/explorer/utils/utils";
 import { ColumnPreferencesProvider } from "@/features/explorer/hooks/useColumnPreferences";
 import { EntitlementDisclaimers } from "@/features/entitlement-disclaimers/EntitlementDisclaimers";
+import { useEntitlements } from "@/features/entitlement-disclaimers/hooks/useEntitlements";
+import { GearRounded } from "@gouvfr-lasuite/ui-kit/icons";
+import {
+  Button,
+  Modal,
+  ModalProps,
+  ModalSize,
+  ModalTab,
+  useModal,
+} from "@gouvfr-lasuite/cunningham-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/features/i18n/initI18n";
+import { useMemo } from "react";
 
 export const getGlobalExplorerLayout = (page: React.ReactElement) => {
   return <GlobalExplorerLayout>{page}</GlobalExplorerLayout>;
@@ -97,11 +119,6 @@ export const ExplorerPanelsLayout = ({
   } = useGlobalExplorer();
 
   const { user } = useAuth();
-  const { config } = useConfig();
-
-  const helpMenuConfig = config?.FRONTEND_HELP_MENU_CONFIG;
-  const hasHelpMenu =
-    !!helpMenuConfig && Object.keys(helpMenuConfig).length > 0;
 
   return (
     <MainLayout
@@ -110,21 +127,7 @@ export const ExplorerPanelsLayout = ({
       rightPanelIsOpen={rightPanelOpen}
       onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
       leftPanelContent={user ? <ExplorerTree /> : <LeftPanelMobile />}
-      leftPanelFooter={
-        hasHelpMenu ? (
-          <div className="c__left-panel__footer__drive">
-            <HelpMenu
-              documentationUrl={helpMenuConfig.documentationUrl}
-              legal={helpMenuConfig.legal}
-              onContactUs={
-                helpMenuConfig.supportEmail
-                  ? () => window.open(helpMenuConfig.supportEmail)
-                  : undefined
-              }
-            />
-          </div>
-        ) : undefined
-      }
+      leftPanelFooter={<LeftPanelFooter />}
       isLeftPanelOpen={isLeftPanelOpen}
       hideLeftPanelOnDesktop={!user || isMinimalLayout}
       setIsLeftPanelOpen={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
@@ -136,4 +139,116 @@ export const ExplorerPanelsLayout = ({
       {children}
     </MainLayout>
   );
+};
+
+const LeftPanelFooter = () => {
+  const { config } = useConfig();
+  const { data: entitlements } = useEntitlements();
+  const quota = entitlements?.quota;
+  console.log("quota", quota);
+  const helpMenuConfig = config?.FRONTEND_HELP_MENU_CONFIG;
+  const hasHelpMenu =
+    !!helpMenuConfig && Object.keys(helpMenuConfig).length > 0;
+
+  const settingsModal = useModal();
+
+  return (
+    <div className="c__left-panel__footer__drive">
+      {hasHelpMenu && (
+        <HelpMenu
+          documentationUrl={helpMenuConfig.documentationUrl}
+          legal={helpMenuConfig.legal}
+          onContactUs={
+            helpMenuConfig.supportEmail
+              ? () => window.open(helpMenuConfig.supportEmail)
+              : undefined
+          }
+        />
+      )}
+      {/* <Button
+        icon={<GearRounded />}
+        color="neutral"
+        variant="tertiary"
+        size={"small"}
+      /> */}
+      <LeftPanelFooterStorageGauge onClick={settingsModal.open} />
+      <SettingsModal {...settingsModal} />
+    </div>
+  );
+};
+
+const SettingsModal = (props: Pick<ModalProps, "isOpen" | "onClose">) => {
+  const { t } = useTranslation();
+  const tabs: ModalTab[] = [
+    {
+      id: "tab1",
+      label: i18n.t("settings_modal.tabs.storage.title"),
+      title: i18n.t("settings_modal.tabs.storage.title"),
+      content: <SettingsModalStorageTab />,
+    },
+  ];
+
+  return (
+    <Modal
+      variant="tab"
+      size={ModalSize.LARGE}
+      sidebarTitle={t("settings_modal.title")}
+      tabs={tabs}
+      constraints={{ preferredHeight: "500px" }}
+      {...props}
+    />
+  );
+};
+
+const SettingsModalStorageTab = () => {
+  const quota = useQuota();
+  if (!quota) {
+    return null;
+  }
+  return (
+    <div>
+      <StorageGaugeInformation
+        used={quota.usageFormatted}
+        total={quota.limitFormatted}
+        unit="GB"
+      />
+    </div>
+  );
+};
+
+const LeftPanelFooterStorageGauge = (props: { onClick: () => void }) => {
+  const quota = useQuota();
+
+  if (quota?.state === "default") {
+    return (
+      <StorageGaugeButton
+        used={quota.usageFormatted}
+        total={quota.limitFormatted}
+        onClick={props.onClick}
+      />
+    );
+  }
+  return ":)";
+};
+
+const useQuota = () => {
+  const { data: entitlements } = useEntitlements();
+
+  const quota = useMemo(() => {
+    const quota = entitlements?.quota;
+    if (!quota) {
+      return null;
+    }
+    if (quota.state === "default") {
+      const usageFormatted = formatSizeTo(quota.usage!, "GB");
+      const limitFormatted = formatSizeTo(quota.limit!, "GB");
+      return {
+        ...quota,
+        usageFormatted: usageFormatted,
+        limitFormatted: limitFormatted,
+      };
+    }
+    return null;
+  }, [entitlements]);
+  return quota;
 };

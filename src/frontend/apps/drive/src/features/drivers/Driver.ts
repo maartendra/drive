@@ -72,6 +72,9 @@ export type Entitlement<T extends EntitlementReason> = {
 export enum EntitlementCanUploadReasons {
   NO_ORGANIZATION = "no_organization",
   NOT_ACTIVATED = "not_activated",
+  RESOLVE_LEVEL_USER = "resolve_level_user",
+  RESOLVE_LEVEL_USER_OVERRIDE = "resolve_level_user_override",
+  RESOLVE_LEVEL_ORGANIZATION = "resolve_level_organization",
 }
 
 type EntitlementOperator = {
@@ -96,6 +99,12 @@ export type Entitlements = {
     organization?: EntitlementOrganization;
     operator?: EntitlementOperator;
     potentialOperators?: EntitlementOperator[];
+  };
+  quota?: {
+    state: "default" | "excedeed_locked" | "error";
+    error?: string;
+    usage?: number;
+    limit?: number;
   };
 };
 

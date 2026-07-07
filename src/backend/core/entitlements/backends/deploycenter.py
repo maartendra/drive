@@ -58,6 +58,8 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
         except requests.RequestException:
             logger.exception("Failed to fetch entitlements for user %s", user.id)
             raise
+        import json
+        print(json.dumps(entitlements, indent=4))
         cache.set(cache_key, entitlements, timeout=self.cache_timeout)
         return entitlements
 
@@ -73,9 +75,13 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
     def can_upload(self, user):
         """Check if a user can upload a file."""
         entitlements = self.get_entitlements(user)
+        reason = entitlements.get("entitlements", {}).get("can_upload_reason", None)
+        resolve_level = entitlements.get("entitlements", {}).get("can_upload_resolve_level", None)
+        actual_reason = reason if reason else f"resolve_level_{resolve_level}";
+        
         return {
             "result": entitlements.get("entitlements", {}).get("can_upload", False),
-            "reason": entitlements.get("entitlements", {}).get("can_upload_reason", None),
+            "reason": actual_reason,
         }
 
     def can_access(self, user):
@@ -89,8 +95,6 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
             return {}
 
         entitlements = self.get_entitlements(user)
-        import json
-        print(json.dumps(entitlements, indent=4))
         can_upload = entitlements.get("entitlements", {}).get("can_upload", False)
         can_upload_resolve_level = entitlements.get("entitlements", {}).get("can_upload_resolve_level", False)
         can_upload_reason = entitlements.get("entitlements", {}).get("can_upload_reason", None)
@@ -111,11 +115,13 @@ class DeployCenterEntitlementsBackend(EntitlementsBackend):
         
         if not metric_account:
             return {
+                "state": "error",
                 "error": "metric_account_not_found"
             }
 
         if not max_storage_account:
             return {
+                "state": "error",
                 "error": "max_storage_account_not_found"
             }
 

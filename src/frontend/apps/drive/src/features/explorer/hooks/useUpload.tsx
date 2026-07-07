@@ -17,7 +17,10 @@ import { getMyFilesQueryKey } from "@/utils/defaultRoutes";
 import { useConfig } from "@/features/config/ConfigProvider";
 import { getDriver } from "@/features/config/Config";
 import { APIError } from "@/features/api/APIError";
-import { useRefreshQueryCacheAfterMutation } from "./useRefreshItems";
+import {
+  useRefreshEntitlementsQueryCache,
+  useRefreshQueryCacheAfterMutation,
+} from "./useRefreshItems";
 import { isIdInItemTree } from "../utils/utils";
 
 type ActiveUpload = {
@@ -33,6 +36,7 @@ import {
   customGetFilesFromEvent,
   isEmptyFolderMarker,
 } from "@/features/explorer/utils/dropTraversal";
+import CannotUploadDisclaimer, { getCannotUploadReasonDescription } from "@/features/entitlement-disclaimers/disclaimers/CannotUploadDisclaimer";
 
 type FileUpload = FileWithPath & {
   parentId?: string;
@@ -239,6 +243,7 @@ export const useUploadZone = ({ item }: { item: Item }) => {
 
   const driver = getDriver();
   const refresh = useRefreshQueryCacheAfterMutation();
+  const refreshEntitlements = useRefreshEntitlementsQueryCache();
 
   const canCreateChildren = useCanCreateChildren(item);
 
@@ -421,12 +426,10 @@ export const useUploadZone = ({ item }: { item: Item }) => {
           ...prev,
           step: UploadingStep.NONE,
         }));
+        const description = getCannotUploadReasonDescription(entitlements.can_upload.reason);
         addToast(
           <ToasterItem type="error">
-            <span>
-              {entitlements.can_upload.message ||
-                t("entitlements.can_upload.cannot_upload")}
-            </span>
+            <span>{entitlements.can_upload.message || description}</span>
           </ToasterItem>,
         );
         return;
@@ -591,6 +594,12 @@ export const useUploadZone = ({ item }: { item: Item }) => {
           }
           activeUploadsRef.current.delete(filePath);
           refresh(file.parentId);
+
+          // Wait for the entitlement cache to be expired so the quota
+          // is refreshed. ( uploaded_ended route calls entitlements endpoint )
+          setTimeout(() => {
+            refreshEntitlements();
+          }, 1000);
           setUploadingState((prev) => ({
             ...prev,
             filesMeta: {
@@ -701,9 +710,7 @@ export const useUploadZone = ({ item }: { item: Item }) => {
       // Collect matches first: onCancelFile mutates the map we're iterating.
       const toCancel: string[] = [];
       for (const [filePath, upload] of activeUploadsRef.current) {
-        if (
-          deletedIds.some((id) => isIdInItemTree(upload.parentPath, id))
-        ) {
+        if (deletedIds.some((id) => isIdInItemTree(upload.parentPath, id))) {
           toCancel.push(filePath);
         }
       }
