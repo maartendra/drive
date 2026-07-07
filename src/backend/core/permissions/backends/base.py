@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from django.contrib.auth.models import AnonymousUser
-from django.db.models import QuerySet, prefetch_related_objects
+from django.db.models import QuerySet
 
 from lasuite.drf.models.choices import RoleChoices
 
@@ -71,8 +71,6 @@ class PermissionsBackend(ABC):
         path_field: str = "path",
     ) -> QuerySet[models.Item]:
         """Filter the queryset to the rows on which the user holds a role."""
-        if user.is_authenticated:
-            prefetch_related_objects([user], "teams")
         return self.annotate_roles(queryset, user, path_field=path_field).exclude(user_roles=[])
 
     def role_at(self, user: models.User, path: str) -> str | None:
