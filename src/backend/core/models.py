@@ -3,6 +3,8 @@ Declare and configure the models for the drive core application
 """
 # pylint: disable=too-many-lines
 
+from __future__ import annotations
+
 import smtplib
 import uuid
 from datetime import timedelta
@@ -1434,7 +1436,7 @@ class Item(TreeModel, BaseModel):
                 path=RawSQL("%s || subpath(path, nlevel(%s))", (str(self.path), str(old_path)))
             )
 
-    def activate_restriction(self, user):
+    def activate_restriction(self, user: User) -> None:
         """Activate restricted access on this folder and ensure the user has an explicit owner."""
         ItemAccess.objects.update_or_create(
             item=self, user=user, defaults={"role": RoleChoices.OWNER}
