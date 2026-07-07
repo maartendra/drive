@@ -38,12 +38,12 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         self.item = item
 
     @cached_property
-    def access_role(self):
+    def access_role(self) -> str | None:
         """Return the role held through accesses only, before any link boost."""
         return self.item.get_role(self.user)
 
     @cached_property
-    def role(self):
+    def role(self) -> str | None:
         """Return the effective role, link definition included."""
         link_definition = self.item.computed_link_definition
         link_reach = link_definition["link_reach"]
@@ -56,61 +56,61 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         return self.access_role
 
     @cached_property
-    def is_deleted(self):
+    def is_deleted(self) -> bool:
         """Return whether the item or one of its ancestors is soft deleted."""
         return bool(self.item.ancestors_deleted_at)
 
     @cached_property
-    def is_owner(self):
+    def is_owner(self) -> bool:
         """Return whether the user holds an owner role through accesses."""
         return self.access_role == RoleChoices.OWNER
 
     @cached_property
-    def is_owner_or_admin(self):
+    def is_owner_or_admin(self) -> bool:
         """Return whether the user holds an owner or administrator role through accesses."""
         return self.is_owner or self.access_role == RoleChoices.ADMIN
 
     @cached_property
-    def has_access_role(self):
+    def has_access_role(self) -> bool:
         """Return whether the user holds a role through accesses on a live item."""
         # Based on accesses only so that anonymous users granted by a link
         # cannot see item accesses or versions
         return bool(self.access_role) and not self.is_deleted
 
     @cached_property
-    def link_select_options(self):
+    def link_select_options(self) -> dict[str, list[str] | None]:
         """Return the link reach and role options selectable on the item."""
         if not self.has_access_role:
             return {}
         return LinkReachChoices.get_select_options(**self.item.ancestors_link_definition)
 
     @property
-    def can_get(self):
+    def can_get(self) -> bool:
         """Return whether the user can read the item."""
         return bool(self.role) and not self.is_deleted
 
     @property
-    def can_retrieve(self):
+    def can_retrieve(self) -> bool:
         """Return whether the user can retrieve the item, even soft deleted."""
         return self.can_get or self.is_owner
 
     @property
-    def can_manage(self):
+    def can_manage(self) -> bool:
         """Return whether the user can manage the item and its accesses."""
         return self.is_owner_or_admin and not self.is_deleted
 
     @property
-    def can_update(self):
+    def can_update(self) -> bool:
         """Return whether the user can modify the item."""
         return (self.is_owner_or_admin or self.role == RoleChoices.EDITOR) and not self.is_deleted
 
     @property
-    def can_create_children(self):
+    def can_create_children(self) -> bool:
         """Return whether the user can create children in the item."""
         return self.can_update and self.user.is_authenticated
 
     @cached_property
-    def can_hard_delete(self):
+    def can_hard_delete(self) -> bool:
         """Return whether the user can delete the item permanently."""
         if self.item.is_root:
             return self.is_owner
@@ -122,7 +122,7 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         return self.is_owner_or_admin or creator_can_delete
 
     @cached_property
-    def is_container_owner(self):
+    def is_container_owner(self) -> bool:
         """Return whether the user owns the folder containing this restricted item."""
         # Cheapest conditions first: the parent role check costs a query
         needs_parent_check = (
@@ -143,12 +143,12 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         return parent is not None and parent.get_role(self.user) == RoleChoices.OWNER
 
     @property
-    def can_destroy(self):
+    def can_destroy(self) -> bool:
         """Return whether the user can remove the item, by deletion or uprooting."""
         return (self.can_hard_delete or self.is_container_owner) and not self.is_deleted
 
     @property
-    def can_duplicate(self):
+    def can_duplicate(self) -> bool:
         """Return whether the user can duplicate the file."""
         return (
             self.can_get
@@ -158,12 +158,12 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def can_export(self):
+    def can_export(self) -> bool:
         """Return whether the user can export the folder as an archive."""
         return self.can_get and self.item.type == models.ItemTypeChoices.FOLDER
 
     @property
-    def can_convert(self):
+    def can_convert(self) -> bool:
         """Return whether the user can convert the file to another format."""
         return (
             self.can_update
@@ -178,7 +178,7 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def can_restrict(self):
+    def can_restrict(self) -> bool:
         """Return whether the user can restrict the folder."""
         return (
             self.is_owner
@@ -187,22 +187,22 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def can_favorite(self):
+    def can_favorite(self) -> bool:
         """Return whether the user can mark the item as favorite."""
         return self.can_get and self.user.is_authenticated
 
     @property
-    def can_invite_owner(self):
+    def can_invite_owner(self) -> bool:
         """Return whether the user can invite another owner on the item."""
         return self.is_owner and not self.is_deleted
 
     @property
-    def can_restore(self):
+    def can_restore(self) -> bool:
         """Return whether the user can restore the item from the trash."""
         return self.is_owner
 
     @property
-    def can_upload_ended(self):
+    def can_upload_ended(self) -> bool:
         """Return whether the user can mark an upload on the item as ended."""
         return self.can_update and self.user.is_authenticated
 
