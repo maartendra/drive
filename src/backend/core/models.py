@@ -1448,7 +1448,7 @@ class Item(TreeModel, BaseModel):
             update_fields.append("link_reach")
         self.save(update_fields=update_fields)
 
-    def deactivate_restriction(self):
+    def deactivate_restriction(self) -> None:
         """Deactivate restricted access and normalize explicit accesses."""
         self.is_restricted = False
         self.save(update_fields=["is_restricted"])
