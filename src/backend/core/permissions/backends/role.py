@@ -1,8 +1,13 @@
 """Role-based permissions backend."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.postgres.fields import ArrayField
-from django.db.models import CharField, Exists, Func, OuterRef, Q, Value
+from django.db.models import CharField, Exists, Func, OuterRef, Q, QuerySet, Value
 from django.utils.functional import cached_property
 
 from lasuite.drf.models.choices import (
@@ -14,6 +19,9 @@ from lasuite.drf.models.choices import (
 from core import models
 from core.permissions.backends.base import PermissionsBackend
 from wopi.conversion.policy import target_extension_for
+
+if TYPE_CHECKING:
+    pass
 
 
 def _cut_by_restriction(path, path_field="item__path"):
@@ -30,7 +38,7 @@ def _cut_by_restriction(path, path_field="item__path"):
 class ItemAbilities:  # pylint: disable=too-many-public-methods
     """Compute the abilities of a user on an item, one property per ability."""
 
-    def __init__(self, user, item):
+    def __init__(self, user: models.User | AnonymousUser, item: models.Item) -> None:
         self.user = user
         self.item = item
 
@@ -203,7 +211,7 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
         """Return whether the user can mark an upload on the item as ended."""
         return self.can_update and self.user.is_authenticated
 
-    def as_dict(self):
+    def as_dict(self) -> dict[str, bool | dict]:
         """Return the ability mapping exposed by the API."""
         return {
             "accesses_manage": self.can_manage,
@@ -237,13 +245,13 @@ class ItemAbilities:  # pylint: disable=too-many-public-methods
 class RolePermissionsBackend(PermissionsBackend):
     """Role-based engine inheriting roles along the item tree, stopping at restricted folders."""
 
-    def effective_accesses(self, item):
+    def effective_accesses(self, item: models.Item) -> QuerySet[models.ItemAccess]:
         """Return the accesses applying to the item, down to its restriction boundary."""
         return models.ItemAccess.objects.filter(
             item__path__ancestors=item.path,
         ).exclude(_cut_by_restriction(item.path))
 
-    def roles_at(self, user, path):
+    def roles_at(self, user: models.User, path: str) -> QuerySet[str]:
         """Return the roles the user holds at the given path, direct or inherited."""
         return (
             models.ItemAccess.objects.filter(
@@ -254,7 +262,7 @@ class RolePermissionsBackend(PermissionsBackend):
             .values_list("role", flat=True)
         )
 
-    def roles_for(self, user, item):
+    def roles_for(self, user: models.User, item: models.Item) -> QuerySet[str]:
         """Return the roles the user holds on the item, direct or inherited."""
         if item.is_restricted:
             # Inheritance is cut on the item itself: only direct accesses apply
@@ -264,7 +272,7 @@ class RolePermissionsBackend(PermissionsBackend):
             ).values_list("role", flat=True)
         return self.roles_at(user, item.path)
 
-    def ancestors_links_paths_mapping(self, item):
+    def ancestors_links_paths_mapping(self, item: models.Item) -> dict[str, list[dict[str, str]]]:
         """Return the link definitions applying to each ancestor path of the item."""
         ancestors = (
             (item.ancestors() | models.Item.objects.filter(pk=item.pk))
@@ -285,7 +293,7 @@ class RolePermissionsBackend(PermissionsBackend):
 
         return paths_links_mapping
 
-    def link_definition_for(self, item):
+    def link_definition_for(self, item: models.Item) -> dict[str, str]:
         """Return the effective link definition of the item, own and inherited combined."""
         if item.is_restricted:
             return item.link_definition
@@ -293,7 +301,12 @@ class RolePermissionsBackend(PermissionsBackend):
             [item.ancestors_link_definition, item.link_definition]
         )
 
-    def annotate_roles(self, queryset, user, path_field="path"):
+    def annotate_roles(
+        self,
+        queryset: QuerySet[models.Item],
+        user: models.User | AnonymousUser,
+        path_field: str = "path",
+    ) -> QuerySet[models.Item]:
         """Annotate the queryset rows with the user's roles as user_roles."""
         output_field = ArrayField(base_field=CharField())
 
@@ -313,13 +326,13 @@ class RolePermissionsBackend(PermissionsBackend):
 
         return queryset.annotate(user_roles=Value([], output_field=output_field))
 
-    def inheritance_scope(self, item):
+    def inheritance_scope(self, item: models.Item) -> QuerySet[models.Item]:
         """Return the ancestors of the item, itself included, down to its restriction boundary."""
         return models.Item.objects.filter(path__ancestors=item.path).exclude(
             _cut_by_restriction(item.path, path_field="path")
         )
 
-    def propagation_scope(self, item):
+    def propagation_scope(self, item: models.Item) -> QuerySet[models.Item]:
         """Return the descendants of the item outside any restricted subtree."""
         return item.descendants().exclude(
             Exists(
@@ -331,7 +344,7 @@ class RolePermissionsBackend(PermissionsBackend):
             )
         )
 
-    def restriction_roots_below(self, item):
+    def restriction_roots_below(self, item: models.Item) -> QuerySet[models.Item]:
         """Return the restricted descendants not nested under another restricted folder."""
         return (
             item.descendants()
@@ -347,6 +360,8 @@ class RolePermissionsBackend(PermissionsBackend):
             )
         )
 
-    def abilities(self, user, item):
+    def abilities(
+        self, user: models.User | AnonymousUser, item: models.Item
+    ) -> dict[str, bool | dict]:
         """Compute and return abilities for a given user on the item."""
         return ItemAbilities(user, item).as_dict()
