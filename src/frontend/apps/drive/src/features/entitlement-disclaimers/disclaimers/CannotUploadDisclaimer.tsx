@@ -51,7 +51,9 @@ const Content = ({
   entitlements: Entitlements;
 }) => {
   const { t } = useTranslation();
-  const reasonTitle = getCannotUploadReasonDescription(entitlements.can_upload.reason);
+  const reasonTitle = getCannotUploadReasonDescription(
+    entitlements.can_upload.reason,
+  );
   return (
     <div>
       {reasonTitle && <p>{reasonTitle}</p>}
@@ -100,17 +102,17 @@ export const getCannotUploadReasonDescription = (
       return i18n.t(
         "entitlements.disclaimers.cannot_upload.not_activated.description",
       );
-    case EntitlementCanUploadReasons.RESOLVE_LEVEL_USER:
+    case EntitlementCanUploadReasons.USER_QUOTA_EXCEEDED:
       return i18n.t(
-        "entitlements.disclaimers.cannot_upload.resolve_level_user.description",
+        "entitlements.disclaimers.cannot_upload.user_quota_excedeed.description",
       );
-    case EntitlementCanUploadReasons.RESOLVE_LEVEL_USER_OVERRIDE:
+    case EntitlementCanUploadReasons.USER_OVERRIDE_QUOTA_EXCEEDED:
       return i18n.t(
-        "entitlements.disclaimers.cannot_upload.resolve_level_user_override.description",
+        "entitlements.disclaimers.cannot_upload.user_override_quota_excedeed.description",
       );
-    case EntitlementCanUploadReasons.RESOLVE_LEVEL_ORGANIZATION:
+    case EntitlementCanUploadReasons.ORGANIZATION_QUOTA_EXCEEDED:
       return i18n.t(
-        "entitlements.disclaimers.cannot_upload.resolve_level_organization.description",
+        "entitlements.disclaimers.cannot_upload.organization_quota_excedeed.description",
       );
     case EntitlementCanUploadReasons.NO_ORGANIZATION:
       return i18n.t(

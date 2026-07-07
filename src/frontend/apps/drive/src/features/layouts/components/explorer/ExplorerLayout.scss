@@ -9,3 +9,22 @@
 .c__toast__container {
   display: none;
 }
+
+.c__storage-gauge__locked-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-grow: 1;
+  justify-content: center;
+}
+
+.c__storage-gauge-information__locked-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-grow: 1;
+}
+
+.c__tooltip__content {
+  word-break: break-word;
+}

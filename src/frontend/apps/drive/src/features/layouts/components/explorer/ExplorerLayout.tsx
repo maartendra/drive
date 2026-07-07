@@ -28,13 +28,14 @@ import {
 import { ColumnPreferencesProvider } from "@/features/explorer/hooks/useColumnPreferences";
 import { EntitlementDisclaimers } from "@/features/entitlement-disclaimers/EntitlementDisclaimers";
 import { useEntitlements } from "@/features/entitlement-disclaimers/hooks/useEntitlements";
-import { GearRounded } from "@gouvfr-lasuite/ui-kit/icons";
+import { GearRounded, Info, Warning } from "@gouvfr-lasuite/ui-kit/icons";
 import {
   Button,
   Modal,
   ModalProps,
   ModalSize,
   ModalTab,
+  Tooltip,
   useModal,
 } from "@gouvfr-lasuite/cunningham-react";
 import { useTranslation } from "react-i18next";
@@ -201,38 +202,26 @@ const SettingsModal = (props: Pick<ModalProps, "isOpen" | "onClose">) => {
 };
 
 const SettingsModalStorageTab = () => {
-  const quota = useQuota();
-  if (!quota) {
+  const storageGauge = useStorageGauge();
+  if (!storageGauge) {
     return null;
   }
-  return (
-    <div>
-      <StorageGaugeInformation
-        used={quota.usageFormatted}
-        total={quota.limitFormatted}
-        unit="GB"
-      />
-    </div>
-  );
+  return <StorageGaugeInformation {...storageGauge} onMoreInfoClick={() => {
+    // HERE
+  }} />;
 };
 
 const LeftPanelFooterStorageGauge = (props: { onClick: () => void }) => {
-  const quota = useQuota();
-
-  if (quota?.state === "default") {
-    return (
-      <StorageGaugeButton
-        used={quota.usageFormatted}
-        total={quota.limitFormatted}
-        onClick={props.onClick}
-      />
-    );
+  const storageGauge = useStorageGauge();
+  if (!storageGauge) {
+    return null;
   }
-  return ":)";
+  return <StorageGaugeButton {...storageGauge} onClick={props.onClick} />;
 };
 
-const useQuota = () => {
+const useStorageGauge = () => {
   const { data: entitlements } = useEntitlements();
+  const { t } = useTranslation();
 
   const quota = useMemo(() => {
     const quota = entitlements?.quota;
@@ -243,12 +232,64 @@ const useQuota = () => {
       const usageFormatted = formatSizeTo(quota.usage!, "GB");
       const limitFormatted = formatSizeTo(quota.limit!, "GB");
       return {
-        ...quota,
-        usageFormatted: usageFormatted,
-        limitFormatted: limitFormatted,
+        quota: quota,
+        used: usageFormatted,
+        total: limitFormatted,
+      };
+    } else if (quota.state === "excedeed_locked") {
+      return {
+        quota: quota,
+        used: 0,
+        total: 0,
+        locked: true,
+        // For button gauge.
+        lockedContent: (
+          <span className="c__storage-gauge__locked-content">
+            <Warning size={IconSize.SMALL} />{" "}
+            {t(
+              `quota.gauge.exceeded_locked.reason.${quota.reason}.description`,
+            )}
+          </span>
+        ),
+        // For information gauge.
+        title: t("quota.gauge.exceeded_locked.title"),
+        label: t("quota.gauge.exceeded_locked.label"),
+      };
+    } else if (quota.state === "error") {
+      return {
+        quota: quota,
+        used: 0,
+        total: 0,
+        locked: true,
+        // For button gauge.
+        lockedContent: (
+          <Tooltip
+            content={t("quota.gauge.error.tooltip", { error: quota.error })}
+          >
+            <span className="c__storage-gauge__locked-content">
+              <Warning size={IconSize.SMALL} /> {t("quota.gauge.error.title")}
+            </span>
+          </Tooltip>
+        ),
+        // For information gauge.
+        title: t("quota.gauge.error.title"),
+        label: t("quota.gauge.error.label"),
+        labelChildren: (
+          <Tooltip
+            content={t("quota.gauge.error.tooltip", { error: quota.error })}
+          >
+            <Button
+              icon={<Info size={IconSize.SMALL} />}
+              size="nano"
+              color="neutral"
+              variant="tertiary"
+            />
+          </Tooltip>
+        ),
       };
     }
     return null;
   }, [entitlements]);
+
   return quota;
 };

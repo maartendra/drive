@@ -656,13 +656,10 @@
           "close": "OK",
           "cannot_upload": {
             "title": "Les téléversements ne sont pas disponibles",
-            "resolve_level_user": {
+            "user_quota_excedeed": {
               "description": "Vous ne pouvez plus ajouter de documents, votre quota personnel est atteint. Contactez votre administrateur."
             },
-            "resolve_level_user_override": {
-              "description": "Vous ne pouvez plus ajouter de documents, votre quota personnel est atteint. Contactez votre administrateur."
-            },
-            "resolve_level_organization": {
+            "organization_quota_excedeed": {
               "description": "Vous ne pouvez plus ajouter de documents, votre quota d'organisation est atteint. Contactez votre administrateur."
             },
             "no_organization": {
@@ -691,6 +688,24 @@
         "tabs": {
           "storage": {
             "title": "Stockage"
+          }
+        }
+      },
+      "quota": {
+        "gauge": {
+          "exceeded_locked": {
+            "title": "Quota organisation dépassé",
+            "label": "Contactez un administrateur pour augmenter le quota",
+            "reason": {
+              "organization_quota_excedeed": {
+                "description": "Quota org. dépassé"
+              }
+            }
+          },
+          "error": {
+            "title": "Erreur de quota",
+            "label": "Contactez le support pour résoudre l'erreur",
+            "tooltip": "Erreur: {{error}}"
           }
         }
       },
