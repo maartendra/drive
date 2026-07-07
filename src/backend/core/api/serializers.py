@@ -761,7 +761,7 @@ class LinkItemSerializer(serializers.ModelSerializer):
             "link_reach",
         ]
 
-    def _validate_against_ancestors(self, link_reach, link_role):
+    def _validate_against_ancestors(self, link_reach: str, link_role: str | None) -> None:
         """Validate the link definition against the options allowed by ancestors."""
         available_options = LinkReachChoices.get_select_options(
             **self.instance.ancestors_link_definition
