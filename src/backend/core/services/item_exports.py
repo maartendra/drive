@@ -1,7 +1,9 @@
 """Service for exporting item folders as streaming ZIP archives."""
 
 import logging
+from collections.abc import Iterator
 
+from django.contrib.auth.models import AnonymousUser
 from django.core.files.storage import default_storage
 
 from zipstream import ZipStream
@@ -31,7 +33,9 @@ def iter_storage_chunks(file_key, chunk_size=DEFAULT_STORAGE_READ_CHUNK_SIZE):
     yield from response["Body"].iter_chunks(chunk_size)
 
 
-def export_descendants(folder, user=None):
+def export_descendants(
+    folder: models.Item, user: models.User | AnonymousUser | None = None
+) -> Iterator[tuple[str | None, str]]:
     """
     Yield (file_key_or_None, archive_path) tuples for a folder's subtree.
 
