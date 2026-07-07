@@ -97,7 +97,10 @@ export const expectLinkReachSelected = async (
   await linkReachDropdown.click();
   const linkReachItem = page.getByRole("menuitem", { name: linkReach });
   await expect(linkReachItem).toBeVisible();
-  await expect(linkReachItem).toContainText("check"); // we have the right icon
+  // we have the right icon
+  await expect(
+    linkReachItem.locator(".c__dropdown-menu-item__check"),
+  ).toBeVisible();
   await closeDropdowns(page);
 };
 
