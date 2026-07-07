@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.postgres.fields import ArrayField
@@ -19,9 +17,6 @@ from lasuite.drf.models.choices import (
 from core import models
 from core.permissions.backends.base import PermissionsBackend
 from wopi.conversion.policy import target_extension_for
-
-if TYPE_CHECKING:
-    pass
 
 
 def _cut_by_restriction(path, path_field="item__path"):
