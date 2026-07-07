@@ -1143,7 +1143,7 @@ class Item(TreeModel, BaseModel):
         """Return the root of the tree."""
         return self.ancestors().filter(path__depth=1).first()
 
-    def parent(self):
+    def parent(self) -> Item | None:
         """Return the direct parent, looked up by its exact path."""
         if len(self.path) > 1:
             return self._meta.model.objects.filter(path=str(self.path[:-1])).first()
