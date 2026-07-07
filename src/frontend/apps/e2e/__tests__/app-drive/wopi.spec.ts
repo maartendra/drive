@@ -9,29 +9,30 @@ import { grantClipboardPermissions } from "./utils/various-utils";
 const IMAGE_FILE_PATH = path.join(__dirname, "/assets/test-image.png");
 const DOCX_FILE_PATH = path.join(__dirname, "/assets/empty_doc.docx");
 
+const injectConvertAbility = (item: Record<string, unknown>) => {
+  item.abilities = {
+    ...(item.abilities as Record<string, unknown>),
+    convert: true,
+  };
+};
+
 /**
  * Intercepts items API responses to inject convert: true on all items.
  */
 const mockRequiresConversion = async (page: Page) => {
-  const inject = (item: Record<string, unknown>) => {
-    item.abilities = {
-      ...(item.abilities as Record<string, unknown>),
-      convert: true,
-    };
-  };
   await page.route(
     (url) => /\/api\/v1\.0\/items(\/|$)/.test(url.pathname),
     async (route) => {
       if (route.request().method() !== "GET") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       const response = await route.fetch();
       const json = await response.json();
       if (Array.isArray(json?.results)) {
-        json.results.forEach(inject);
+        json.results.forEach(injectConvertAbility);
       } else if (json?.id) {
-        inject(json);
+        injectConvertAbility(json);
       }
       await route.fulfill({ response, json });
     },
@@ -57,7 +58,7 @@ test("Double-clicking a file with convert ability opens the conversion modal", a
   await row.dblclick();
 
   await expect(
-    page.getByRole("heading", { name: "Convert to open this file" }),
+    page.getByRole("dialog", { name: "Convert to open this file" }),
   ).toBeVisible();
 });
 
@@ -85,12 +86,12 @@ test("Cancelling the conversion modal (convert mocked) does not call the convert
   const row = await getRowItem(page, "empty_doc");
   await row.dblclick();
   await expect(
-    page.getByRole("heading", { name: "Convert to open this file" }),
+    page.getByRole("dialog", { name: "Convert to open this file" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(
-    page.getByRole("heading", { name: "Convert to open this file" }),
+    page.getByRole("dialog", { name: "Convert to open this file" }),
   ).not.toBeVisible();
   expect(convertCalled).toBe(false);
 });
@@ -128,44 +129,70 @@ test("Confirming the conversion modal (convert mocked) shows the converting plac
     });
   });
 
+  const placeholder = {
+    id: placeholderId,
+    title: "empty_doc.docx",
+    filename: "empty_doc.docx",
+    type: "file",
+    upload_state: "converting",
+    abilities: {},
+  };
+
   // Inject the placeholder in the folder list returned by /items/ so it shows
-  // up after the post-conversion refresh.
+  // up after the post-conversion refresh. This route shadows the one set by
+  // mockRequiresConversion, so it must re-inject the convert ability too.
   await page.route(
     (url) => /\/api\/v1\.0\/items(\/|$)/.test(url.pathname),
     async (route) => {
       if (route.request().method() !== "GET") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       const response = await route.fetch();
       const json = await response.json();
-      const placeholder = {
-        id: placeholderId,
-        title: "empty_doc.docx",
-        filename: "empty_doc.docx",
-        type: "file",
-        upload_state: "converting",
-        abilities: {},
-      };
       if (Array.isArray(json?.results)) {
+        json.results.forEach(injectConvertAbility);
         json.results.push(placeholder);
+      } else if (json?.id) {
+        injectConvertAbility(json);
       }
       await route.fulfill({ response, json });
     },
   );
 
+  // The poller GETs the placeholder right away: keep it in the converting
+  // state so the placeholder row stays in the folder.
+  await page.route(`**/api/v1.0/items/${placeholderId}/`, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(placeholder),
+    });
+  });
+
   const row = await getRowItem(page, "empty_doc");
   await row.dblclick();
   await expect(
-    page.getByRole("heading", { name: "Convert to open this file" }),
+    page.getByRole("dialog", { name: "Convert to open this file" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Convert" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Convert to open this file" }),
+    page.getByRole("dialog", { name: "Convert to open this file" }),
   ).not.toBeVisible({ timeout: 5000 });
-  await expect(page.getByText("conversion in progress")).toBeVisible();
+  // The grid renders a hidden duplicate of each row (drag ghost), hence the
+  // visibility filter.
+  await expect(
+    page.getByText("conversion in progress").filter({ visible: true }),
+  ).toBeVisible();
+
+  // Ignore routes still fetching when the test ends.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("Conversion failure removes the converting placeholder and shows an error toast", async ({
@@ -199,12 +226,14 @@ test("Conversion failure removes the converting placeholder and shows an error t
     });
   });
 
-  // Inject the placeholder in the folder list returned by /items/.
+  // Inject the placeholder in the folder list returned by /items/. This route
+  // shadows the one set by mockRequiresConversion, so it must re-inject the
+  // convert ability too.
   await page.route(
     (url) => /\/api\/v1\.0\/items(\/|$)/.test(url.pathname),
     async (route) => {
       if (route.request().method() !== "GET") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       const response = await route.fetch();
@@ -218,7 +247,10 @@ test("Conversion failure removes the converting placeholder and shows an error t
         abilities: {},
       };
       if (Array.isArray(json?.results)) {
+        json.results.forEach(injectConvertAbility);
         json.results.push(placeholder);
+      } else if (json?.id) {
+        injectConvertAbility(json);
       }
       await route.fulfill({ response, json });
     },
@@ -229,7 +261,7 @@ test("Conversion failure removes the converting placeholder and shows an error t
     `**/api/v1.0/items/${placeholderId}/`,
     async (route) => {
       if (route.request().method() !== "GET") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       await route.fulfill({
@@ -243,16 +275,21 @@ test("Conversion failure removes the converting placeholder and shows an error t
   const row = await getRowItem(page, "empty_doc");
   await row.dblclick();
   await expect(
-    page.getByRole("heading", { name: "Convert to open this file" }),
+    page.getByRole("dialog", { name: "Convert to open this file" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Convert" }).click();
 
   await expect(
     page.getByText("Conversion failed. Please try again."),
   ).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText("conversion in progress")).not.toBeVisible({
+  await expect(
+    page.getByText("conversion in progress").filter({ visible: true }),
+  ).not.toBeVisible({
     timeout: 10000,
   });
+
+  // Ignore routes still fetching when the test ends.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("Double-clicking a WOPI file opens the editor in a new tab", async ({
